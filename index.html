@@ -112,7 +112,7 @@
 <div id="loading">Генерирую поверхности планет…</div>
 
 <header class="hud title">
-  <h1>Солнечная система <small>v9</small></h1>
+  <h1>Солнечная система <small>v9.1</small></h1>
   <p>Восемь планет и крупные спутники Юпитера и Сатурна стоят там, где они находятся сегодня, и движутся по настоящим орбитам. Размеры тел между собой реальные. Солнце уменьшено в 3,6 раза, спутники Марса увеличены, расстояния сжаты (можно включить настоящие). Нажмите на название тела, чтобы перелететь к нему.</p>
 </header>
 
@@ -966,7 +966,8 @@ function frame() {
       if (pulseSec > travel + 0.7) pulseSec = 0;
       const t = pulseSec / travel;
       pulse.visible = t <= 1;
-      pulse.position.copy(a).lerp(b, Math.min(t, 1));
+      // к планете летит сигнал с Земли, а от Солнца к Земле идёт солнечный свет
+      if (lt.planet) pulse.position.copy(a).lerp(b, Math.min(t, 1)); else pulse.position.copy(b).lerp(a, Math.min(t, 1));
       pulse.scale.setScalar(camera.position.distanceTo(pulse.position) * 0.035);
       // подпись посередине линии
       // подпись ставится у той части линии, что в кадре: в обзоре — ближе к Земле, вблизи тела — рядом с ним
