@@ -70,6 +70,7 @@
   button:hover, select:hover { border-color: var(--muted); }
   button:focus-visible, select:focus-visible, input[type=range]:focus-visible, .chk input:focus-visible { outline: 2px solid var(--sun); outline-offset: 2px; }
   #playBtn { min-width: 84px; border-color: var(--sun); color: var(--sun); }
+  .dist-pick { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .chk { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--ink); }
   .chk input { accent-color: var(--sun); margin: 0; }
 
@@ -121,7 +122,7 @@
 <div id="loading">Генерирую поверхности планет…</div>
 
 <header class="hud title">
-  <h1>Солнечная система <small>v10</small></h1>
+  <h1>Солнечная система <small>v11</small></h1>
   <p>Восемь планет и крупные спутники Юпитера и Сатурна стоят там, где они находятся сегодня, и движутся по настоящим орбитам. Размеры тел между собой реальные. Солнце уменьшено в 3,6 раза, спутники Марса увеличены, расстояния сжаты (можно включить настоящие). Нажмите на название тела, чтобы перелететь к нему. Ближайшая звезда — Альфа Центавра — в списке «Камера».</p>
 </header>
 
@@ -186,7 +187,9 @@
     </select>
   </div>
   <div class="group">
-    <label class="chk"><input type="checkbox" id="showDist" checked> Расстояние от Земли</label>
+    <span class="dist-pick"><label class="chk"><input type="checkbox" id="showDist" checked> Расстояние</label>
+      <label class="lbl" for="distFrom">от</label><select id="distFrom"><option value="sun">Солнца</option><option value="mercury">Меркурия</option><option value="venus">Венеры</option><option value="emb" selected>Земли</option><option value="mars">Марса</option><option value="jupiter">Юпитера</option><option value="saturn">Сатурна</option><option value="uranus">Урана</option><option value="neptune">Нептуна</option></select>
+      <label class="lbl" for="distTo">до</label><select id="distTo" title="«тела в камере» — расстояние до того, что выбрано в списке «Камера»"><option value="cam" selected>тела в камере</option><option value="sun">Солнца</option><option value="mercury">Меркурия</option><option value="venus">Венеры</option><option value="emb">Земли</option><option value="mars">Марса</option><option value="jupiter">Юпитера</option><option value="saturn">Сатурна</option><option value="uranus">Урана</option><option value="neptune">Нептуна</option></select></span>
     <label class="chk"><input type="checkbox" id="linearScale"> Настоящие расстояния между планетами</label>
     <label class="chk"><input type="checkbox" id="realScale"> Настоящие расстояния до спутников</label>
     <label class="chk"><input type="checkbox" id="showOrbits" checked> Орбиты</label>
@@ -853,17 +856,31 @@ function drawStrip(lt) {
   c.fillStyle = muted;
   // Солнце и планеты на настоящих расстояниях
   c.fillStyle = '#ffc56e'; c.beginPath(); c.arc(x0, yAxis, 5, 0, Math.PI * 2); c.fill();
-  for (const p of PLANETS) { c.fillStyle = p.color; c.beginPath(); c.arc(X(p.au.length()), yAxis, p.key === 'emb' || p === lt.planet ? 3.5 : 2.2, 0, Math.PI * 2); c.fill(); }
-  // отрезок «Земля → цель» в том же масштабе
-  const rE = P.emb.au.length(), from = lt.planet ? X(rE) : x0, to = lt.planet ? X(rE + lt.km / AU_KM) : X(rE);
+  for (const p of PLANETS) { c.fillStyle = p.color; c.beginPath(); c.arc(X(p.au.length()), yAxis, p.key === lt.O.key || p.key === lt.T.key ? 3.5 : 2.2, 0, Math.PI * 2); c.fill(); }
+  // отрезок между выбранными точками в том же масштабе (от Солнца — по радиусу, иначе — от первой точки вправо)
+  const rO = lt.O.au.length(), rT = lt.T.au.length();
+  let from, to;
+  if (lt.O.key === 'sun' || lt.T.key === 'sun') { from = x0; to = X(Math.max(rO, rT)); }
+  else { from = X(rO); to = X(rO + lt.km / AU_KM); }
   c.strokeStyle = lt.color; c.lineWidth = 3; c.lineCap = 'round';
   c.beginPath(); c.moveTo(from, yBar); c.lineTo(to, yBar); c.stroke();
-  c.font = '600 11px Jura, sans-serif'; c.textAlign = 'left'; c.fillStyle = '#6fb7ff';
-  c.fillText('Земля', Math.max(2, X(rE) - 14), yName);
-  if (lt.planet) { c.fillStyle = lt.color; c.textAlign = 'center'; c.fillText(lt.name, Math.max(70, Math.min(X(lt.planet.au.length()), x1 - 30)), yName); }
+  // подписи двух точек над шкалой
+  c.font = '600 11px Jura, sans-serif'; c.textAlign = 'left';
+  const xa = Math.max(2, X(rO) - 12); c.fillStyle = lt.O.color; c.fillText(lt.O.name, xa, yName);
+  let xb = Math.max(2, X(rT) - 12); const wa = c.measureText(lt.O.name).width;
+  if (Math.abs(xb - xa) < wa + 10) xb = xa + wa + 10;
+  c.fillStyle = lt.T.color; c.fillText(lt.T.name, Math.min(xb, x1 - c.measureText(lt.T.name).width), yName);
   c.font = '10px "IBM Plex Mono", monospace'; c.fillStyle = lt.color;
-  const txt = (lt.planet ? 'Земля → ' + lt.name : 'Солнце → Земля') + ': ' + lightText(lt.km / 299792.458 / 60), tw = c.measureText(txt).width;
+  const txt = lt.name + ': ' + lightText(lt.km / 299792.458 / 60), tw = c.measureText(txt).width;
   c.textAlign = 'left'; c.fillText(txt, Math.max(x0 - 6, Math.min(to - tw, x1 - tw)), yBarLbl);
+}
+
+const ZERO = new THREE.Vector3();
+function endpoint(key) {
+  if (key === 'sun') return { key, name: 'Солнце', color: '#ffc56e', pos: sunW, R: PHYS.sunRadius * 1.05, au: ZERO };
+  if (key === 'emb') return { key, name: 'Земля', color: '#6fb7ff', pos: earthW, R: 1.3, au: P.emb.au };
+  const p = P[key];
+  return { key, name: p.name, color: p.color, pos: p.world, R: p.R * (p.ring ? 1.3 : 1.1), au: p.au };
 }
 
 const allOrbitLines = () => [moonOrbitLine, earthWobbleLine, ...marsMoonLines, ...GIANT_MOONS.map(m => m.line), ...PLANETS.map(p => p.orbit)];
@@ -1146,11 +1163,23 @@ function frame() {
     const isPlanet = P[tgtKey] && tgtKey !== 'emb';
     let lt;
     if (activeScene === 'sol') {
-      lt = isPlanet ? { planet: tgt, pos: tgt.world, R: tgt.R * (tgt.ring ? 1.3 : 1.1), name: tgt.name, color: tgt.color, km }
-                    : { planet: null, pos: sunW, R: PHYS.sunRadius * 1.05, name: 'Солнце', color: '#ffc56e', km: P.emb.au.length() * AU_KM };
-      lt.from = earthW; lt.fromR = 1.3; lt.reverse = !isPlanet;
-      lt.travel = lt.km / C_KMS / LIGHT_SPEEDUP;
-      lt.text = kmText(lt.km) + ' · ' + lightText(lt.km / C_KMS / 60); lt.note = '';
+      // две точки: «от» и «до» (по умолчанию — от Земли до тела, выбранного в камере)
+      const fromKey = $('distFrom').value;
+      let toKey = $('distTo').value;
+      if (toKey === 'cam') toKey = focus === 'sun' ? 'sun' : (focus === 'earth' || focus === 'moon' || focus === 'bary') ? 'emb' : (P[tgtKey] ? tgtKey : 'sun');
+      if (toKey === fromKey) toKey = fromKey === 'sun' ? 'emb' : 'sun';
+      const O = endpoint(fromKey), T = endpoint(toKey);
+      const km2 = O.au.distanceTo(T.au) * AU_KM, lightMin2 = km2 / C_KMS / 60;
+      const sunTo = toKey === 'sun';           // свет идёт от Солнца, поэтому импульс и подпись разворачиваются
+      lt = { O, T, from: O.pos, fromR: O.R, pos: T.pos, R: T.R, km: km2, reverse: sunTo,
+             color: sunTo ? O.color : T.color, name: sunTo ? T.name + ' → ' + O.name : O.name + ' → ' + T.name };
+      lt.travel = km2 / C_KMS / LIGHT_SPEEDUP;
+      lt.text = kmText(km2) + ' · ' + lightText(lightMin2); lt.note = '';
+      $('rdTgtName').textContent = O.name + ' — ' + T.name;
+      $('rdTgtDist').textContent = kmText(km2);
+      $('rdTgtLight').textContent = lightMin2 >= 60 ? Math.floor(lightMin2 / 60) + ' ч ' + String(Math.round(lightMin2 % 60)).padStart(2, '0') + ' мин'
+        : Math.floor(lightMin2) + ' мин ' + String(Math.round((lightMin2 % 1) * 60)).padStart(2, '0') + ' с';
+      document.documentElement.style.setProperty('--target', lt.color);
     } else {   // у Альфы Центавра: линия от Солнца на здешнем небе, свет ускорен так, чтобы импульс летел 8 секунд
       const body = AC_BODIES[focus] || AC_BODIES.acAB, tb = focus === 'acAB' ? AC_BODIES.acA : body;
       lt = { planet: null, pos: tb.world, R: tb.R * 1.1, name: body.name, color: body.color, km: body.distLy * LY_KM,
