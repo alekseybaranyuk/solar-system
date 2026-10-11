@@ -97,6 +97,15 @@
     backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
   }
   #strip { display: block; width: 100%; height: 100%; }
+  .dist-label small { display: block; text-align: center; font-size: 10px; color: var(--muted); margin-top: 1px; }
+  #warp {
+    position: fixed; inset: 0; z-index: 4; display: grid; place-items: center; text-align: center; pointer-events: none;
+    background: var(--void); opacity: 0; transition: opacity 0.45s ease;
+    font: 600 20px var(--f-display); letter-spacing: 0.05em; color: var(--ink);
+  }
+  #warp.on { opacity: 1; }
+  #warp small { display: block; margin-top: 8px; font: 400 12px var(--f-mono); letter-spacing: 0; color: var(--muted); }
+  @media (prefers-reduced-motion: reduce) { #warp { transition: none; } }
   #loading { position: fixed; inset: 0; display: grid; place-items: center; color: var(--muted); font-family: var(--f-mono); font-size: 12px; z-index: 5; background: var(--void); }
 
   @media (max-width: 640px) {
@@ -112,16 +121,16 @@
 <div id="loading">Генерирую поверхности планет…</div>
 
 <header class="hud title">
-  <h1>Солнечная система <small>v9.1</small></h1>
-  <p>Восемь планет и крупные спутники Юпитера и Сатурна стоят там, где они находятся сегодня, и движутся по настоящим орбитам. Размеры тел между собой реальные. Солнце уменьшено в 3,6 раза, спутники Марса увеличены, расстояния сжаты (можно включить настоящие). Нажмите на название тела, чтобы перелететь к нему.</p>
+  <h1>Солнечная система <small>v10</small></h1>
+  <p>Восемь планет и крупные спутники Юпитера и Сатурна стоят там, где они находятся сегодня, и движутся по настоящим орбитам. Размеры тел между собой реальные. Солнце уменьшено в 3,6 раза, спутники Марса увеличены, расстояния сжаты (можно включить настоящие). Нажмите на название тела, чтобы перелететь к нему. Ближайшая звезда — Альфа Центавра — в списке «Камера».</p>
 </header>
 
 <dl class="hud readout" aria-live="off">
   <dt>Дата</dt><dd id="rdDate">—</dd>
-  <dt>Земля — Солнце</dt><dd id="rdSunDist">—</dd>
+  <dt id="rdSunName">Земля — Солнце</dt><dd id="rdSunDist">—</dd>
   <dt id="rdTgtName">Земля — Марс</dt><dd class="tgt" id="rdTgtDist">—</dd>
   <dt>Сигнал идёт</dt><dd class="tgt" id="rdTgtLight">—</dd>
-  <div class="phase-row">
+  <div class="phase-row" id="phaseRow">
     <canvas id="phaseIcon" width="68" height="68" aria-hidden="true"></canvas>
     <div><div id="phaseName">—</div><div id="phaseLit">освещено —</div></div>
   </div>
@@ -167,6 +176,13 @@
         <option value="titan">Титан</option>
         <option value="iapetus">Япет</option>
       </optgroup>
+      <optgroup label="Альфа Центавра (4,37 св. года)">
+        <option value="acAB">Альфа Центавра A и B</option>
+        <option value="acA">Альфа Центавра A</option>
+        <option value="acB">Альфа Центавра B</option>
+        <option value="prox">Проксима Центавра</option>
+        <option value="proxb">Проксима b</option>
+      </optgroup>
     </select>
   </div>
   <div class="group">
@@ -179,6 +195,8 @@
 </div>
 
 <div id="tags"></div>
+<div id="tagsAC" hidden></div>
+<div id="warp" aria-live="polite"></div>
 
 <script>
   window.addEventListener('error', e => {
@@ -507,6 +525,7 @@ camera.position.set(0, 1150, 1560);
 const controls = new THREE.OrbitControls(camera, canvas);
 controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistance = 0.4; controls.maxDistance = 40000;
 
+let starPoints;
 { // звёзды
   const N = 8000, pos = new Float32Array(N * 3), col = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
@@ -517,7 +536,8 @@ controls.enableDamping = true; controls.dampingFactor = 0.08; controls.minDistan
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ size: 1.6, sizeAttenuation: false, vertexColors: true })));
+  starPoints = new THREE.Points(g, new THREE.PointsMaterial({ size: 1.6, sizeAttenuation: false, vertexColors: true }));
+  scene.add(starPoints);
 }
 scene.add(new THREE.AmbientLight(0x22283a, 0.3));
 scene.add(new THREE.PointLight(0xfff4e2, 1.7, 0));
@@ -632,6 +652,108 @@ const giantMoonRadius = (m, blend) => m.rc + (m.rReal - m.rc) * blend;
 
 /* Построение тел — по шагам, чтобы показывать прогресс */
 let earth, clouds, moon, mars, sun, marsMoons = [];
+/* ---------- Альфа Центавра: отдельная сцена ----------
+   Координаты и орбита пары A–B: Kervella и др. 2016 (P = 79,91 г., e = 0,524, i = 79,32°, Ω = 204,75°, ω = 232,3°,
+   периастр 1955,66). Масштаб тот же, что у Солнечной системы: звёзды уменьшены в 3,6 раза, расстояния — √r. */
+const LY_KM = 9460730472580.8, LY_AU = LY_KM / AU_KM, C_KMS = 299792.458;
+const OBL = 23.4392911 * DEG;
+function equVecToScene(xe, ye, ze, out) { return eclToScene(xe, ye * Math.cos(OBL) + ze * Math.sin(OBL), -ye * Math.sin(OBL) + ze * Math.cos(OBL), out); }
+function equToScene(ra, dec, out) { const a = ra * DEG, d = dec * DEG; return equVecToScene(Math.cos(d) * Math.cos(a), Math.cos(d) * Math.sin(a), Math.sin(d), out); }
+const ACD = {
+  distLy: 4.37, ra: 219.9021, dec: -60.8340,
+  P: 79.91 * 365.25, T: (1955.66 - 2000.0) * 365.25, e: 0.524, a: 23.5, i: 79.32 * DEG, Om: 204.75 * DEG, w: 232.3 * DEG,
+  fracB: 0.459,                     // доля массы B: A отстоит от центра масс на 0,459 расстояния A–B
+  prox: { distLy: 4.2426, ra: 217.4290, dec: -62.6795 },
+};
+const acDir = equToScene(ACD.ra, ACD.dec, new THREE.Vector3());                 // от Солнца к Альфе Центавра
+const acEast = equVecToScene(-Math.sin(ACD.ra * DEG), Math.cos(ACD.ra * DEG), 0, new THREE.Vector3());
+const acNorth = equVecToScene(-Math.sin(ACD.dec * DEG) * Math.cos(ACD.ra * DEG), -Math.sin(ACD.dec * DEG) * Math.sin(ACD.ra * DEG), Math.cos(ACD.dec * DEG), new THREE.Vector3());
+const proxOffAU = equToScene(ACD.prox.ra, ACD.prox.dec, new THREE.Vector3()).multiplyScalar(ACD.prox.distLy * LY_AU)
+  .sub(acDir.clone().multiplyScalar(ACD.distLy * LY_AU));                        // Проксима относительно центра масс A–B, а.е.
+const sqrtMap = (vAU, out) => { const r = vAU.length() || 1e-9; return out.copy(vAU).multiplyScalar(AU * Math.sqrt(r) / r); };
+function abRelative(d, out) {   // положение B относительно A, а.е.
+  const M = 2 * Math.PI * (((d - ACD.T) / ACD.P) % 1), e = ACD.e;
+  let E = M; for (let k = 0; k < 8; k++) E -= (E - e * Math.sin(E) - M) / (1 - e * Math.cos(E));
+  return abFromE(E, out);
+}
+function abFromE(E, out) {
+  const e = ACD.e, nu = 2 * Math.atan2(Math.sqrt(1 + e) * Math.sin(E / 2), Math.sqrt(1 - e) * Math.cos(E / 2)), r = ACD.a * (1 - e * Math.cos(E));
+  const u = nu + ACD.w, ci = Math.cos(ACD.i);
+  const X = r * (Math.cos(u) * Math.cos(ACD.Om) - Math.sin(u) * Math.sin(ACD.Om) * ci);   // к северу на небе
+  const Y = r * (Math.cos(u) * Math.sin(ACD.Om) + Math.sin(u) * Math.cos(ACD.Om) * ci);   // к востоку
+  const Z = r * Math.sin(u) * Math.sin(ACD.i);                                             // вдоль луча зрения
+  return out.copy(acNorth).multiplyScalar(X).addScaledVector(acEast, Y).addScaledVector(acDir, Z);
+}
+const STAR_R = 30;   // радиус Солнца в сцене; другие звёзды в том же масштабе
+const AC_BODIES = {
+  acAB:  { name: 'Альфа Центавра A и B', color: '#ffe2a8', R: 0, distLy: 4.37, focus: 1900 },
+  acA:   { name: 'Альфа Центавра A', color: '#fff1c8', R: 1.2234 * STAR_R, distLy: 4.37, focus: 200 },
+  acB:   { name: 'Альфа Центавра B', color: '#ffc98a', R: 0.8632 * STAR_R, distLy: 4.37, focus: 140 },
+  prox:  { name: 'Проксима Центавра', color: '#ff7a52', R: 0.1542 * STAR_R, distLy: 4.2426, focus: 70 },
+  proxb: { name: 'Проксима b', color: '#d9a58a', R: 1.07, distLy: 4.2426, focus: 7 },
+};
+for (const b of Object.values(AC_BODIES)) b.world = new THREE.Vector3();
+const acScene = new THREE.Scene();
+acScene.background = scene.background;
+acScene.add(new THREE.AmbientLight(0x22283a, 0.3));
+const acA = new THREE.Group(), acB = new THREE.Group(), acProx = new THREE.Group(), acProxOrbit = new THREE.Group();
+acScene.add(acA, acB, acProx); acProx.add(acProxOrbit);
+acProxOrbit.rotation.set(0.35, 0, 0.2);   // наклон орбиты Проксимы b неизвестен
+const proxbPivot = new THREE.Group(); acProxOrbit.add(proxbPivot);
+acA.add(new THREE.PointLight(0xfff4e2, 1.4, 12000, 1));
+acB.add(new THREE.PointLight(0xffd9a8, 0.9, 12000, 1));
+acProx.add(new THREE.PointLight(0xff9068, 2.4, 400, 1));
+const acOrbitA = orbitLine('#fff1c8', 0.3, 360), acOrbitB = orbitLine('#ffc98a', 0.3, 360), proxbOrbitLine = orbitLine('#d9a58a', 0.35, 128);
+acScene.add(acOrbitA, acOrbitB); acProxOrbit.add(proxbOrbitLine);
+{
+  const pa = acOrbitA.geometry.attributes.position, pb = acOrbitB.geometry.attributes.position, v = new THREE.Vector3(), w = new THREE.Vector3();
+  for (let i = 0; i <= 360; i++) {
+    abFromE(i / 360 * Math.PI * 2, v);
+    sqrtMap(w.copy(v).multiplyScalar(-ACD.fracB), w); pa.setXYZ(i, w.x, w.y, w.z);
+    sqrtMap(w.copy(v).multiplyScalar(1 - ACD.fracB), w); pb.setXYZ(i, w.x, w.y, w.z);
+  }
+  const rb = AU * Math.sqrt(0.04848), pp = proxbOrbitLine.geometry.attributes.position;
+  for (let i = 0; i <= 128; i++) { const t = i / 128 * Math.PI * 2; pp.setXYZ(i, Math.cos(t) * rb, 0, -Math.sin(t) * rb); }
+}
+acProx.position.copy(sqrtMap(proxOffAU, new THREE.Vector3()));
+const proxBeacon = beacon('#ff7a52'); acProx.add(proxBeacon);
+const proxbBeacon = beacon('#d9a58a'); proxbPivot.add(proxbBeacon);
+// небесные метки: Альфа Центавра на нашем небе и Солнце на небе Альфы Центавра
+function skyStar(color, size) {
+  return new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSprite(color, color.replace(/[\d.]+\)$/, '0.25)'), 64), sizeAttenuation: false, depthWrite: false, transparent: true, blending: THREE.AdditiveBlending }));
+}
+const acSky = skyStar('rgba(255,240,215,1)'); acSky.scale.setScalar(0.03); acSky.position.copy(acDir).multiplyScalar(50000); scene.add(acSky);
+const sunSky = skyStar('rgba(255,236,190,1)'); sunSky.scale.setScalar(0.028); sunSky.position.copy(acDir).multiplyScalar(-50000); acScene.add(sunSky);
+function makeStarMap(g0, g1, b0, b1) {
+  return paintSphere(512, 256, (x, y, z) => {
+    const n = fbm(x * 9, y * 9, z * 9, 4, 1200), b = fbm(x * 2.5, y * 2.5, z * 2.5, 3, 1201);
+    const t = 0.75 + 0.35 * n - 0.15 * smooth(0.6, 0.75, b);
+    return [255, Math.min(255, g0 + g1 * t), Math.min(255, b0 + b1 * t)];
+  });
+}
+function makeProxbMap() {
+  return paintSphere(512, 256, (x, y, z, lat) => {
+    const n = fbm(x * 3 + 70, y * 3, z * 3, 5, 3300), f = fbm(x * 12, y * 12, z * 12, 3, 3301);
+    let c = mix([92, 78, 70], [150, 128, 110], clamp01(n * 0.9 + f * 0.3 - 0.1));
+    return mix(c, [214, 220, 228], smooth(1.15, 1.35, Math.abs(lat) + 0.1 * (f - 0.5)));
+  });
+}
+function buildAC() {
+  const star = (grp, R, map, glowIn, glowOut, glowK) => {
+    grp.add(new THREE.Mesh(new THREE.SphereGeometry(R, 64, 48), new THREE.MeshBasicMaterial({ map: srgb(map) })));
+    const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSprite(glowIn, glowOut), depthWrite: false, blending: THREE.AdditiveBlending }));
+    g.scale.setScalar(R * glowK); grp.add(g);
+  };
+  star(acA, AC_BODIES.acA.R, makeStarMap(150, 95, 50, 80), 'rgba(255,245,220,0.9)', 'rgba(255,170,70,0.25)', 3.6);
+  star(acB, AC_BODIES.acB.R, makeStarMap(120, 85, 40, 55), 'rgba(255,225,190,0.9)', 'rgba(255,140,60,0.25)', 3.6);
+  star(acProx, AC_BODIES.prox.R, makeStarMap(70, 60, 40, 40), 'rgba(255,170,130,0.9)', 'rgba(255,80,40,0.3)', 5);
+  AC_BODIES.proxb.mesh = new THREE.Mesh(new THREE.SphereGeometry(AC_BODIES.proxb.R, 64, 48), new THREE.MeshPhongMaterial({ map: srgb(makeProxbMap()), shininess: 3, specular: 0x000000 }));
+  proxbPivot.add(AC_BODIES.proxb.mesh);
+  acScene.add(starPoints.clone());
+}
+const sceneOf = key => AC_BODIES[key] ? 'ac' : 'sol';
+let activeScene = 'sol', snapCamera = false;
+
 const BUILD = [
   ['Солнце', () => { sun = new THREE.Mesh(new THREE.SphereGeometry(PHYS.sunRadius, 64, 48), new THREE.MeshBasicMaterial({ map: srgb(makeSunMap()) })); sunGroup.add(sun); }],
   ['Земля', () => {
@@ -673,6 +795,7 @@ const BUILD = [
       if (m.atmo) m.pivot.add(atmosphere(m.r * 1.06, m.atmo[0], m.atmo[1]));
     }
   }]),
+  ['Альфа Центавра', buildAC],
 ];
 
 /* ---------- Интерфейс ---------- */
@@ -702,7 +825,7 @@ const pulse = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSprite('rgba(
 scene.add(pulse);
 let pulseSec = 0;
 const lightText = m => m < 60 ? fmt(m, m < 10 ? 1 : 0) + ' св. мин' : fmt(m / 60, 1) + ' св. ч';
-const kmText = km => km > 1e9 ? fmt(km / 1e9, 2) + ' млрд км' : fmt(km / 1e6, km < 1e8 ? 1 : 0) + ' млн км';
+const kmText = km => km > 1e12 ? fmt(km / 1e12, 1) + ' трлн км' : km > 1e9 ? fmt(km / 1e9, 2) + ' млрд км' : fmt(km / 1e6, km < 1e8 ? 1 : 0) + ' млн км';
 ui.dist.addEventListener('change', () => { $('stripBox').hidden = !ui.dist.checked; resize(); });
 
 const stripCv = $('strip'), stripCtx = stripCv.getContext('2d');
@@ -726,6 +849,8 @@ function drawStrip(lt) {
     c.fillText(h + ' св. ч', x, yTick);
   }
   c.textAlign = 'left'; c.fillText('Настоящий масштаб · световой импульс ускорен в ' + LIGHT_SPEEDUP + ' раз', x0 - 6, yCap);
+  if (W > 760) { c.textAlign = 'right'; c.fillStyle = '#ffe2a8'; c.fillText('Альфа Центавра → 4,37 св. года, в 9 000 раз дальше Нептуна', x1, yCap); }
+  c.fillStyle = muted;
   // Солнце и планеты на настоящих расстояниях
   c.fillStyle = '#ffc56e'; c.beginPath(); c.arc(x0, yAxis, 5, 0, Math.PI * 2); c.fill();
   for (const p of PLANETS) { c.fillStyle = p.color; c.beginPath(); c.arc(X(p.au.length()), yAxis, p.key === 'emb' || p === lt.planet ? 3.5 : 2.2, 0, Math.PI * 2); c.fill(); }
@@ -752,13 +877,19 @@ const TAGS = [
   { id: 'bary', label: 'барицентр', cls: 'bary', focus: 'bary' },
   ...MARS_MOONS.map(m => ({ id: m.key, label: m.name, cls: 'minor', focus: 'mars' })),
   ...GIANT_MOONS.map(m => ({ id: m.key, label: m.name, cls: 'minor', color: m.color, focus: m.key })),
+  { id: 'acsky', label: 'Альфа Центавра', color: '#ffe2a8', focus: 'acAB' },
+  { id: 'acA', label: 'A', color: '#fff1c8', focus: 'acA', ac: true },
+  { id: 'acB', label: 'B', color: '#ffc98a', focus: 'acB', ac: true },
+  { id: 'prox', label: 'Проксима Центавра', color: '#ff7a52', focus: 'prox', ac: true },
+  { id: 'proxb', label: 'Проксима b', cls: 'minor', color: '#d9a58a', focus: 'proxb', ac: true },
+  { id: 'sunsky', label: 'Солнце · 4,37 св. года', color: '#ffc56e', focus: 'sun', ac: true },
 ];
 for (const t of TAGS) {
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'tag' + (t.cls ? ' ' + t.cls : ''); b.id = 'tag-' + t.id; b.textContent = t.label;
   if (t.color) b.style.color = t.color;
   b.addEventListener('click', () => setFocus(t.focus));
-  $('tags').appendChild(b);
+  $(t.ac ? 'tagsAC' : 'tags').appendChild(b);
 }
 
 /* Камера */
@@ -767,8 +898,43 @@ PLANETS.forEach(p => { if (p.focus) FOCUS_DIST[p.key] = p.focus; });
 GIANT_MOONS.forEach(m => { FOCUS_DIST[m.key] = Math.max(0.6, m.r * 9); });
 let focus = 'sun', flying = 0, prevFocusKey = null;
 const prevFocusPos = new THREE.Vector3();
-function setFocus(name) { focus = name; flying = 1; ui.focus.value = name; }
+Object.entries(AC_BODIES).forEach(([k, b]) => { FOCUS_DIST[k] = b.focus; });
+function setFocus(name) {
+  if (sceneOf(name) !== activeScene) return warpTo(name);
+  focus = name; flying = 1; ui.focus.value = name;
+}
+// перелёт между Солнечной системой и Альфой Центавра: затемнение, смена сцены, проявление
+let warping = false;
+const SOL_TEXT = document.querySelector('.title p').textContent;
+const AC_TEXT = 'Ближайшая к нам звёздная система, 4,37 светового года. Две звезды, похожие на Солнце, A и B, обходят общий центр масс за 80 лет. Далеко от них, в 13 000 а.е., — красный карлик Проксима Центавра с планетой Проксима b. Масштаб тот же, что у Солнечной системы. Наше Солнце отсюда — яркая звезда, к ней ведёт линия. Вернуться можно, нажав на Солнце в небе или выбрав «Вся система» в списке «Камера».';
+function warpTo(name) {
+  if (warping) return;
+  warping = true; ui.focus.value = name;
+  const toAC = sceneOf(name) === 'ac';
+  $('warp').innerHTML = '<div>' + (toAC ? 'Перелёт к Альфе Центавра<small>4,37 светового года · свет летит 4 года 4 месяца</small>'
+                                        : 'Возвращение к Солнцу<small>4,37 светового года</small>') + '</div>';
+  $('warp').classList.add('on');
+  setTimeout(() => {
+    activeScene = toAC ? 'ac' : 'sol';
+    focus = name; flying = 0; prevFocusKey = null; snapCamera = true;
+    const host = toAC ? acScene : scene; host.add(distLine, pulse);
+    $('tags').hidden = toAC; $('tagsAC').hidden = !toAC;
+    $('phaseRow').style.display = toAC ? 'none' : '';
+    document.querySelector('.title h1').firstChild.textContent = toAC ? 'Альфа Центавра ' : 'Солнечная система ';
+    document.querySelector('.title p').textContent = toAC ? AC_TEXT : SOL_TEXT;
+    setTimeout(() => { $('warp').classList.remove('on'); warping = false; }, 650);
+  }, 500);
+}
 ui.focus.addEventListener('change', () => setFocus(ui.focus.value));
+$('strip').addEventListener('click', e => {   // надпись «Альфа Центавра →» в правом верхнем углу полоски
+  const r = $('strip').getBoundingClientRect();
+  if (e.clientY - r.top < 20 && e.clientX - r.left > r.width - 380) setFocus('acAB');
+});
+$('strip').addEventListener('mousemove', e => {
+  const r = $('strip').getBoundingClientRect();
+  $('strip').style.cursor = (r.width > 760 && e.clientY - r.top < 20 && e.clientX - r.left > r.width - 380) ? 'pointer' : '';
+});
+$('stripBox').title = 'Расстояния от Солнца в настоящем масштабе. До Альфы Центавра 4,37 светового года — в 9 000 раз дальше Нептуна.';
 
 let distNow = PHYS.moonDistCompact, distTarget = distNow, exagNow = 1;
 ui.real.addEventListener('change', () => {
@@ -926,8 +1092,36 @@ function frame() {
     : Math.floor(lightMin) + ' мин ' + String(Math.round((lightMin % 1) * 60)).padStart(2, '0') + ' с';
   document.documentElement.style.setProperty('--target', tgt.color);
 
+  // Альфа Центавра: пара A–B вокруг общего центра масс, Проксима b вокруг Проксимы
+  const abRel = abRelative(d, new THREE.Vector3());
+  sqrtMap(v3.copy(abRel).multiplyScalar(-ACD.fracB), acA.position);
+  sqrtMap(v3.copy(abRel).multiplyScalar(1 - ACD.fracB), acB.position);
+  { const th = d / 11.18465 * Math.PI * 2, rb = AU * Math.sqrt(0.04848);
+    proxbPivot.position.set(Math.cos(th) * rb, 0, -Math.sin(th) * rb); proxbPivot.rotation.y = th + Math.PI; }
+  acScene.updateMatrixWorld();
+  AC_BODIES.acAB.world.set(0, 0, 0); acA.getWorldPosition(AC_BODIES.acA.world); acB.getWorldPosition(AC_BODIES.acB.world);
+  acProx.getWorldPosition(AC_BODIES.prox.world); proxbPivot.getWorldPosition(AC_BODIES.proxb.world);
+  if (activeScene === 'ac') {
+    const body = AC_BODIES[focus] || AC_BODIES.acAB;
+    const sepKm = abRel.length() * AU_KM;
+    $('rdSunName').textContent = 'Между A и B';
+    $('rdSunDist').textContent = fmt(sepKm / 1e9, 2) + ' млрд км';
+    $('rdTgtName').textContent = 'Земля — ' + body.name.replace('Альфа Центавра A и B', 'Альфа Центавра');
+    $('rdTgtDist').textContent = kmText(body.distLy * LY_KM);
+    const months = Math.round(body.distLy * 12);
+    $('rdTgtLight').textContent = Math.floor(months / 12) + ' г. ' + (months % 12) + ' мес.';
+    document.documentElement.style.setProperty('--target', body.color);
+  } else $('rdSunName').textContent = 'Земля — Солнце';
+
   // камера
-  const focusPos = { sun: sunW, earth: earthW, moon: moonW, bary: P.emb.world }[focus] || (P[focus] || GM[focus]).world;
+  const focusPos = AC_BODIES[focus] ? AC_BODIES[focus].world : ({ sun: sunW, earth: earthW, moon: moonW, bary: P.emb.world }[focus] || (P[focus] || GM[focus]).world);
+  if (snapCamera) {   // сразу после перелёта ставим камеру рядом с целью
+    const off = camera.position.clone().sub(controls.target);
+    if (off.lengthSq() < 1e-6) off.set(0, 0.5, 1);
+    off.normalize().multiplyScalar(FOCUS_DIST[focus]);
+    controls.target.copy(focusPos); camera.position.copy(focusPos).add(off);
+    snapCamera = false;
+  }
   // сначала камера смещается вместе с целью (спутники движутся быстро), затем плавно подлетает
   if (prevFocusKey === focus) { v3.copy(focusPos).sub(prevFocusPos); controls.target.add(v3); camera.position.add(v3); }
   prevFocusKey = focus; prevFocusPos.copy(focusPos);
@@ -950,29 +1144,41 @@ function frame() {
   // расстояние от Земли до выбранного тела (или до Солнца)
   {
     const isPlanet = P[tgtKey] && tgtKey !== 'emb';
-    const lt = isPlanet ? { planet: tgt, pos: tgt.world, R: tgt.R * (tgt.ring ? 1.3 : 1.1), name: tgt.name, color: tgt.color, km }
-                        : { planet: null, pos: sunW, R: PHYS.sunRadius * 1.05, name: 'Солнце', color: '#ffc56e', km: P.emb.au.length() * AU_KM };
-    const on = ui.dist.checked, dir = v3.copy(lt.pos).sub(earthW), L = dir.length();
+    let lt;
+    if (activeScene === 'sol') {
+      lt = isPlanet ? { planet: tgt, pos: tgt.world, R: tgt.R * (tgt.ring ? 1.3 : 1.1), name: tgt.name, color: tgt.color, km }
+                    : { planet: null, pos: sunW, R: PHYS.sunRadius * 1.05, name: 'Солнце', color: '#ffc56e', km: P.emb.au.length() * AU_KM };
+      lt.from = earthW; lt.fromR = 1.3; lt.reverse = !isPlanet;
+      lt.travel = lt.km / C_KMS / LIGHT_SPEEDUP;
+      lt.text = kmText(lt.km) + ' · ' + lightText(lt.km / C_KMS / 60); lt.note = '';
+    } else {   // у Альфы Центавра: линия от Солнца на здешнем небе, свет ускорен так, чтобы импульс летел 8 секунд
+      const body = AC_BODIES[focus] || AC_BODIES.acAB, tb = focus === 'acAB' ? AC_BODIES.acA : body;
+      lt = { planet: null, pos: tb.world, R: tb.R * 1.1, name: body.name, color: body.color, km: body.distLy * LY_KM,
+             from: sunSky.position, fromR: 0, reverse: false, travel: 8 };
+      lt.text = kmText(lt.km) + ' · ' + fmt(body.distLy, 2) + ' св. года';
+      lt.note = 'от Солнца · импульс света ускорен в ' + fmt(body.distLy * 365.25 * 86400 / 8 / 1e6, 0) + ' млн раз';
+    }
+    const on = ui.dist.checked, dir = v3.copy(lt.pos).sub(lt.from), L = dir.length();
     distLine.visible = pulse.visible = on && L > lt.R + 2;
     const lab = $('distLabel');
     if (distLine.visible) {
       dir.normalize();
-      const a = earthW.clone().addScaledVector(dir, 1.3), b = lt.pos.clone().addScaledVector(dir, -lt.R);
+      const a = lt.from.clone().addScaledVector(dir, lt.fromR), b = lt.pos.clone().addScaledVector(dir, -lt.R);
       const pa = distLine.geometry.attributes.position; pa.setXYZ(0, a.x, a.y, a.z); pa.setXYZ(1, b.x, b.y, b.z); pa.needsUpdate = true;
       distLine.material.color.set(lt.color);
       // световой импульс: время пути как у настоящего света, ускоренное в LIGHT_SPEEDUP раз
-      const lightMin = lt.km / 299792.458 / 60, travel = lightMin * 60 / LIGHT_SPEEDUP;
+      const travel = lt.travel;
       pulseSec += dt;
       if (pulseSec > travel + 0.7) pulseSec = 0;
       const t = pulseSec / travel;
       pulse.visible = t <= 1;
       // к планете летит сигнал с Земли, а от Солнца к Земле идёт солнечный свет
-      if (lt.planet) pulse.position.copy(a).lerp(b, Math.min(t, 1)); else pulse.position.copy(b).lerp(a, Math.min(t, 1));
+      if (!lt.reverse) pulse.position.copy(a).lerp(b, Math.min(t, 1)); else pulse.position.copy(b).lerp(a, Math.min(t, 1));
       pulse.scale.setScalar(camera.position.distanceTo(pulse.position) * 0.035);
       // подпись посередине линии
       // подпись ставится у той части линии, что в кадре: в обзоре — ближе к Земле, вблизи тела — рядом с ним
       const segL = a.distanceTo(b);
-      const bottomY = Math.min(view.y + view.h * 0.85, ($('stripBox').hidden ? $('controls') : $('stripBox')).getBoundingClientRect().top - 24);
+      const bottomY = Math.min(view.y + view.h * 0.85, ($('stripBox').hidden || activeScene === 'ac' ? $('controls') : $('stripBox')).getBoundingClientRect().top - 24);
       const inFrame = q => q.ok && q.x > view.x + view.w * 0.12 && q.x < view.x + view.w * 0.88 && q.y > view.y + view.h * 0.25 && q.y < bottomY;
       let ok = false, mid = new THREE.Vector3();
       if (camDist > segL * 1.2) {            // вся линия в кадре: подпись ближе к Земле, если линия не слишком короткая
@@ -992,10 +1198,11 @@ function frame() {
       if (sA.ok) {
         lab.style.left = sA.x + 'px'; lab.style.top = sA.y + 'px';
         lab.style.setProperty('--line-color', lt.color);
-        lab.innerHTML = '<b>' + lt.name + '</b> · ' + kmText(lt.km) + ' · ' + lightText(lightMin);
+        lab.innerHTML = '<b>' + lt.name + '</b> · ' + lt.text + (lt.note ? '<small>' + lt.note + '</small>' : '');
       }
     } else lab.hidden = true;
-    if (on) drawStrip(lt);
+    $('stripBox').style.display = activeScene === 'ac' ? 'none' : '';
+    if (on && activeScene === 'sol') drawStrip(lt);
   }
 
   // маяки и подписи
@@ -1016,7 +1223,16 @@ function frame() {
     placeTag(m.key, m.world, pxRadius(m.world, m.r) + 4, host.world, near ? pxRadius(host.world, host.R) + 14 : 1e9);
   });
 
-  renderer.render(scene, camera);
+  placeTag('acsky', acSky.position, 12);
+  if (activeScene === 'ac') {
+    for (const k of ['acA', 'acB', 'prox']) placeTag(k, AC_BODIES[k].world, pxRadius(AC_BODIES[k].world, AC_BODIES[k].R) + 4);
+    placeTag('proxb', AC_BODIES.proxb.world, pxRadius(AC_BODIES.proxb.world, AC_BODIES.proxb.R) + 4, AC_BODIES.prox.world, 30);
+    placeTag('sunsky', sunSky.position, 12);
+    proxBeacon.visible = pxRadius(AC_BODIES.prox.world, AC_BODIES.prox.R) < 2.5;
+    proxbBeacon.visible = pxRadius(AC_BODIES.proxb.world, AC_BODIES.proxb.R) < 2.5;
+  }
+
+  renderer.render(activeScene === 'ac' ? acScene : scene, camera);
   requestAnimationFrame(frame);
 }
 
