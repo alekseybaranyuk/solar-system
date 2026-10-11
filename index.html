@@ -98,7 +98,7 @@
 <div id="loading">Генерирую поверхности планет…</div>
 
 <header class="hud title">
-  <h1>Солнечная система <small>v8</small></h1>
+  <h1>Солнечная система <small>v8.1</small></h1>
   <p>Восемь планет и крупные спутники Юпитера и Сатурна стоят там, где они находятся сегодня, и движутся по настоящим орбитам. Размеры тел между собой реальные. Солнце уменьшено в 3,6 раза, спутники Марса увеличены, расстояния сжаты (можно включить настоящие). Нажмите на название тела, чтобы перелететь к нему.</p>
 </header>
 
@@ -699,7 +699,8 @@ for (const t of TAGS) {
 const FOCUS_DIST = { sun: 1900, earth: 32, moon: 2.4, bary: 32, mars: 7 };
 PLANETS.forEach(p => { if (p.focus) FOCUS_DIST[p.key] = p.focus; });
 GIANT_MOONS.forEach(m => { FOCUS_DIST[m.key] = Math.max(0.6, m.r * 9); });
-let focus = 'sun', flying = 0;
+let focus = 'sun', flying = 0, prevFocusKey = null;
+const prevFocusPos = new THREE.Vector3();
 function setFocus(name) { focus = name; flying = 1; ui.focus.value = name; }
 ui.focus.addEventListener('change', () => setFocus(ui.focus.value));
 
@@ -861,6 +862,9 @@ function frame() {
 
   // камера
   const focusPos = { sun: sunW, earth: earthW, moon: moonW, bary: P.emb.world }[focus] || (P[focus] || GM[focus]).world;
+  // сначала камера смещается вместе с целью (спутники движутся быстро), затем плавно подлетает
+  if (prevFocusKey === focus) { v3.copy(focusPos).sub(prevFocusPos); controls.target.add(v3); camera.position.add(v3); }
+  prevFocusKey = focus; prevFocusPos.copy(focusPos);
   if (flying > 0) {
     const k = 1 - Math.exp(-dt * 3.5);
     const newT = controls.target.clone().lerp(focusPos, k);
