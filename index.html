@@ -83,12 +83,26 @@
   .tag.minor { text-transform: none; font-weight: 400; font-size: 11px; color: #d9b8a6; }
   .tag.bary { text-transform: none; font-weight: 400; font-size: 11px; color: var(--sun); }
 
+  .dist-label {
+    position: fixed; z-index: 1; transform: translate(-50%, -50%); pointer-events: none; white-space: nowrap;
+    font: 500 11.5px var(--f-mono); font-variant-numeric: tabular-nums; color: var(--ink);
+    padding: 3px 8px; border-radius: 3px; background: var(--panel); border: 1px solid var(--line);
+  }
+  .dist-label b { font: 600 12px var(--f-display); letter-spacing: 0.04em; color: var(--line-color, var(--ink)); }
+  .scale-strip {
+    left: 50%; transform: translateX(-50%);
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--ctrl-h, 150px) + 8px);
+    width: min(860px, calc(100vw - 32px)); height: 78px;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  #strip { display: block; width: 100%; height: 100%; }
   #loading { position: fixed; inset: 0; display: grid; place-items: center; color: var(--muted); font-family: var(--f-mono); font-size: 12px; z-index: 5; background: var(--void); }
 
   @media (max-width: 640px) {
     .title h1 { font-size: 20px; }
     .title p { display: none; }
-    .readout { top: auto; bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--ctrl-h, 150px) + 10px); left: 16px; right: 16px; min-width: 0; grid-template-columns: auto auto auto auto; }
+    .readout { top: auto; bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--ctrl-h, 150px) + 96px); left: 16px; right: 16px; min-width: 0; grid-template-columns: auto auto auto auto; }
   }
 </style>
 
@@ -98,7 +112,7 @@
 <div id="loading">Генерирую поверхности планет…</div>
 
 <header class="hud title">
-  <h1>Солнечная система <small>v8.2</small></h1>
+  <h1>Солнечная система <small>v9</small></h1>
   <p>Восемь планет и крупные спутники Юпитера и Сатурна стоят там, где они находятся сегодня, и движутся по настоящим орбитам. Размеры тел между собой реальные. Солнце уменьшено в 3,6 раза, спутники Марса увеличены, расстояния сжаты (можно включить настоящие). Нажмите на название тела, чтобы перелететь к нему.</p>
 </header>
 
@@ -112,6 +126,9 @@
     <div><div id="phaseName">—</div><div id="phaseLit">освещено —</div></div>
   </div>
 </dl>
+
+<div class="hud scale-strip" id="stripBox"><canvas id="strip" aria-label="Расстояния от Солнца в настоящем масштабе"></canvas></div>
+<div class="dist-label" id="distLabel"></div>
 
 <div class="hud controls" id="controls">
   <div class="group speed">
@@ -153,6 +170,7 @@
     </select>
   </div>
   <div class="group">
+    <label class="chk"><input type="checkbox" id="showDist" checked> Расстояние от Земли</label>
     <label class="chk"><input type="checkbox" id="linearScale"> Настоящие расстояния между планетами</label>
     <label class="chk"><input type="checkbox" id="realScale"> Настоящие расстояния до спутников</label>
     <label class="chk"><input type="checkbox" id="showOrbits" checked> Орбиты</label>
@@ -659,7 +677,7 @@ const BUILD = [
 
 /* ---------- Интерфейс ---------- */
 const $ = id => document.getElementById(id);
-const ui = { speed: $('speed'), speedVal: $('speedVal'), play: $('playBtn'), real: $('realScale'), linear: $('linearScale'), showOrbits: $('showOrbits'), exag: $('exaggerate'), focus: $('focus') };
+const ui = { speed: $('speed'), speedVal: $('speedVal'), play: $('playBtn'), real: $('realScale'), linear: $('linearScale'), showOrbits: $('showOrbits'), exag: $('exaggerate'), focus: $('focus'), dist: $('showDist') };
 const fmt = (v, d) => v.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d });
 
 const J2000 = Date.UTC(2000, 0, 1, 12);
@@ -675,6 +693,54 @@ function speedLabel(v) {
 ui.speed.addEventListener('input', () => ui.speedVal.textContent = speedLabel(speedFromSlider()));
 ui.play.addEventListener('click', () => { playing = !playing; ui.play.textContent = playing ? 'Пауза' : 'Пуск'; });
 $('todayBtn').addEventListener('click', () => { simDays = nowDays(); });
+/* Расстояние от Земли: пунктир, световой импульс и полоска настоящего масштаба */
+const LIGHT_SPEEDUP = 500;   // импульс света ускорен в 500 раз: 1 световая минута = 0,12 с
+const distLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+  new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false }));
+distLine.frustumCulled = false; scene.add(distLine);
+const pulse = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSprite('rgba(255,255,255,1)', 'rgba(255,255,255,0.35)', 64), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+scene.add(pulse);
+let pulseSec = 0;
+const lightText = m => m < 60 ? fmt(m, m < 10 ? 1 : 0) + ' св. мин' : fmt(m / 60, 1) + ' св. ч';
+const kmText = km => km > 1e9 ? fmt(km / 1e9, 2) + ' млрд км' : fmt(km / 1e6, km < 1e8 ? 1 : 0) + ' млн км';
+ui.dist.addEventListener('change', () => { $('stripBox').hidden = !ui.dist.checked; resize(); });
+
+const stripCv = $('strip'), stripCtx = stripCv.getContext('2d');
+const LH_AU = 60 * 299792.458 * 60 / AU_KM;   // световой час в а.е. (≈ 7,2)
+function drawStrip(lt) {
+  const box = stripCv.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = Math.round(box.width), H = Math.round(box.height);
+  if (!W || !H) return;
+  if (stripCv.width !== W * dpr || stripCv.height !== H * dpr) { stripCv.width = W * dpr; stripCv.height = H * dpr; }
+  const c = stripCtx; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+  const css = getComputedStyle(document.documentElement);
+  const muted = css.getPropertyValue('--muted').trim(), line = css.getPropertyValue('--line').trim();
+  const x0 = 18, x1 = W - 14, RMAX = 32, X = r => x0 + (x1 - x0) * Math.min(r, RMAX) / RMAX;
+  const yCap = 10, yName = 24, yAxis = 36, yTick = 48, yBar = 58, yBarLbl = 70;
+  c.font = '10px "IBM Plex Mono", monospace'; c.textBaseline = 'middle';
+  // шкала: световые часы
+  c.strokeStyle = line; c.lineWidth = 1; c.beginPath(); c.moveTo(x0, yAxis); c.lineTo(x1, yAxis); c.stroke();
+  c.fillStyle = muted; c.textAlign = 'center';
+  for (let h = 1; h * LH_AU < RMAX; h++) {
+    const x = X(h * LH_AU); c.beginPath(); c.moveTo(x, yAxis - 4); c.lineTo(x, yAxis + 4); c.stroke();
+    c.fillText(h + ' св. ч', x, yTick);
+  }
+  c.textAlign = 'left'; c.fillText('Настоящий масштаб · световой импульс ускорен в ' + LIGHT_SPEEDUP + ' раз', x0 - 6, yCap);
+  // Солнце и планеты на настоящих расстояниях
+  c.fillStyle = '#ffc56e'; c.beginPath(); c.arc(x0, yAxis, 5, 0, Math.PI * 2); c.fill();
+  for (const p of PLANETS) { c.fillStyle = p.color; c.beginPath(); c.arc(X(p.au.length()), yAxis, p.key === 'emb' || p === lt.planet ? 3.5 : 2.2, 0, Math.PI * 2); c.fill(); }
+  // отрезок «Земля → цель» в том же масштабе
+  const rE = P.emb.au.length(), from = lt.planet ? X(rE) : x0, to = lt.planet ? X(rE + lt.km / AU_KM) : X(rE);
+  c.strokeStyle = lt.color; c.lineWidth = 3; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(from, yBar); c.lineTo(to, yBar); c.stroke();
+  c.font = '600 11px Jura, sans-serif'; c.textAlign = 'left'; c.fillStyle = '#6fb7ff';
+  c.fillText('Земля', Math.max(2, X(rE) - 14), yName);
+  if (lt.planet) { c.fillStyle = lt.color; c.textAlign = 'center'; c.fillText(lt.name, Math.max(70, Math.min(X(lt.planet.au.length()), x1 - 30)), yName); }
+  c.font = '10px "IBM Plex Mono", monospace'; c.fillStyle = lt.color;
+  const txt = (lt.planet ? 'Земля → ' + lt.name : 'Солнце → Земля') + ': ' + lightText(lt.km / 299792.458 / 60), tw = c.measureText(txt).width;
+  c.textAlign = 'left'; c.fillText(txt, Math.max(x0 - 6, Math.min(to - tw, x1 - tw)), yBarLbl);
+}
+
 const allOrbitLines = () => [moonOrbitLine, earthWobbleLine, ...marsMoonLines, ...GIANT_MOONS.map(m => m.line), ...PLANETS.map(p => p.orbit)];
 ui.showOrbits.addEventListener('change', () => allOrbitLines().forEach(l => l.visible = ui.showOrbits.checked));
 
@@ -880,6 +946,56 @@ function frame() {
   controls.update();
   const camDist = camera.position.distanceTo(controls.target);
   camera.near = Math.max(0.01, camDist * 0.002); camera.updateProjectionMatrix();
+
+  // расстояние от Земли до выбранного тела (или до Солнца)
+  {
+    const isPlanet = P[tgtKey] && tgtKey !== 'emb';
+    const lt = isPlanet ? { planet: tgt, pos: tgt.world, R: tgt.R * (tgt.ring ? 1.3 : 1.1), name: tgt.name, color: tgt.color, km }
+                        : { planet: null, pos: sunW, R: PHYS.sunRadius * 1.05, name: 'Солнце', color: '#ffc56e', km: P.emb.au.length() * AU_KM };
+    const on = ui.dist.checked, dir = v3.copy(lt.pos).sub(earthW), L = dir.length();
+    distLine.visible = pulse.visible = on && L > lt.R + 2;
+    const lab = $('distLabel');
+    if (distLine.visible) {
+      dir.normalize();
+      const a = earthW.clone().addScaledVector(dir, 1.3), b = lt.pos.clone().addScaledVector(dir, -lt.R);
+      const pa = distLine.geometry.attributes.position; pa.setXYZ(0, a.x, a.y, a.z); pa.setXYZ(1, b.x, b.y, b.z); pa.needsUpdate = true;
+      distLine.material.color.set(lt.color);
+      // световой импульс: время пути как у настоящего света, ускоренное в LIGHT_SPEEDUP раз
+      const lightMin = lt.km / 299792.458 / 60, travel = lightMin * 60 / LIGHT_SPEEDUP;
+      pulseSec += dt;
+      if (pulseSec > travel + 0.7) pulseSec = 0;
+      const t = pulseSec / travel;
+      pulse.visible = t <= 1;
+      pulse.position.copy(a).lerp(b, Math.min(t, 1));
+      pulse.scale.setScalar(camera.position.distanceTo(pulse.position) * 0.035);
+      // подпись посередине линии
+      // подпись ставится у той части линии, что в кадре: в обзоре — ближе к Земле, вблизи тела — рядом с ним
+      const segL = a.distanceTo(b);
+      const bottomY = Math.min(view.y + view.h * 0.85, ($('stripBox').hidden ? $('controls') : $('stripBox')).getBoundingClientRect().top - 24);
+      const inFrame = q => q.ok && q.x > view.x + view.w * 0.12 && q.x < view.x + view.w * 0.88 && q.y > view.y + view.h * 0.25 && q.y < bottomY;
+      let ok = false, mid = new THREE.Vector3();
+      if (camDist > segL * 1.2) {            // вся линия в кадре: подпись ближе к Земле, если линия не слишком короткая
+        screenOf(a, sA); screenOf(b, sB);
+        ok = Math.hypot(sA.x - sB.x, sA.y - sB.y) > 160;
+        mid.copy(a).lerp(b, 0.35); screenOf(mid, sA);
+      } else {                               // камера у одного из концов: подпись на видимом куске линии рядом с ним
+        const tc = v3.copy(controls.target).sub(a).dot(v4.copy(b).sub(a)) / (segL * segL) < 0.5 ? 0 : 1;
+        for (const f of [0.35, 0.25, 0.16, 0.1]) {
+          const tl = THREE.MathUtils.clamp(tc + (tc ? -1 : 1) * f * camDist / segL, 0, 1);
+          mid.copy(a).lerp(b, tl); screenOf(mid, sA);
+          if (inFrame(sA)) { ok = true; break; }
+        }
+      }
+      lab.hidden = !ok;
+      if (ok) sA.ok = true; else sA.ok = false;
+      if (sA.ok) {
+        lab.style.left = sA.x + 'px'; lab.style.top = sA.y + 'px';
+        lab.style.setProperty('--line-color', lt.color);
+        lab.innerHTML = '<b>' + lt.name + '</b> · ' + kmText(lt.km) + ' · ' + lightText(lightMin);
+      }
+    } else lab.hidden = true;
+    if (on) drawStrip(lt);
+  }
 
   // маяки и подписи
   baryMark.scale.setScalar(Math.max(0.08, camera.position.distanceTo(P.emb.world) * 0.012));
