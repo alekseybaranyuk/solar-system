@@ -98,8 +98,8 @@
 <div id="loading">Генерирую поверхности планет…</div>
 
 <header class="hud title">
-  <h1>Солнечная система <small>v7</small></h1>
-  <p>Восемь планет стоят там, где они находятся сегодня, и движутся по настоящим эллиптическим орбитам. Размеры планет между собой реальные. Солнце уменьшено в 3,6 раза, спутники Марса увеличены, расстояния между планетами сжаты (можно включить настоящие). Нажмите на название тела, чтобы перелететь к нему.</p>
+  <h1>Солнечная система <small>v8</small></h1>
+  <p>Восемь планет и крупные спутники Юпитера и Сатурна стоят там, где они находятся сегодня, и движутся по настоящим орбитам. Размеры тел между собой реальные. Солнце уменьшено в 3,6 раза, спутники Марса увеличены, расстояния сжаты (можно включить настоящие). Нажмите на название тела, чтобы перелететь к нему.</p>
 </header>
 
 <dl class="hud readout" aria-live="off">
@@ -135,11 +135,26 @@
       <option value="saturn">Сатурн</option>
       <option value="uranus">Уран</option>
       <option value="neptune">Нептун</option>
+      <optgroup label="Спутники Юпитера">
+        <option value="io">Ио</option>
+        <option value="europa">Европа</option>
+        <option value="ganymede">Ганимед</option>
+        <option value="callisto">Каллисто</option>
+      </optgroup>
+      <optgroup label="Спутники Сатурна">
+        <option value="mimas">Мимас</option>
+        <option value="enceladus">Энцелад</option>
+        <option value="tethys">Тефия</option>
+        <option value="dione">Диона</option>
+        <option value="rhea">Рея</option>
+        <option value="titan">Титан</option>
+        <option value="iapetus">Япет</option>
+      </optgroup>
     </select>
   </div>
   <div class="group">
     <label class="chk"><input type="checkbox" id="linearScale"> Настоящие расстояния между планетами</label>
-    <label class="chk"><input type="checkbox" id="realScale"> Настоящее расстояние до Луны</label>
+    <label class="chk"><input type="checkbox" id="realScale"> Настоящие расстояния до спутников</label>
     <label class="chk"><input type="checkbox" id="showOrbits" checked> Орбиты</label>
     <label class="chk"><input type="checkbox" id="exaggerate"> Качание Земли ×10</label>
   </div>
@@ -386,6 +401,42 @@ function makeNeptuneMap() {
       return mix(c, [230, 238, 255], cloud * 0.7);
     } });
 }
+// спутники Юпитера и Сатурна; u = 0,25 — ведущее полушарие (спутники повёрнуты к планете одной стороной)
+function iceMoonMap(seed, light, dark, nCraters, fn) {
+  const cv = paintSphere(512, 256, (x, y, z, lat, u) => {
+    const n = fbm(x * 3 + seed, y * 3, z * 3, 5, seed), fine = fbm(x * 14, y * 14, z * 14, 3, seed + 7);
+    const c = mix(dark, light, clamp01(n * 0.8 + fine * 0.4 - 0.1));
+    return fn ? fn(c, x, y, z, lat, u) : c;
+  });
+  return nCraters ? craters(cv, nCraters, 12, seed, 'rgba(40,40,44,0.3)', 'rgba(255,255,255,0.3)') : cv;
+}
+const makeIoMap = () => iceMoonMap(2100, [236, 222, 140], [196, 150, 70], 0, (c, x, y, z, lat) => {
+  const v = fbm(x * 9, y * 9, z * 9, 3, 2101);
+  c = mix(c, [200, 120, 60], smooth(0.62, 0.7, v) * 0.7);                  // красноватые поля вокруг вулканов
+  c = mix(c, [50, 36, 26], smooth(0.74, 0.78, v));                         // жерла
+  return mix(c, [150, 130, 110], smooth(0.9, 1.3, Math.abs(lat)) * 0.6);
+});
+const makeEuropaMap = () => iceMoonMap(2200, [232, 226, 214], [200, 182, 160], 0, (c, x, y, z) => {
+  const l1 = Math.abs(fbm(x * 3, y * 3, z * 3, 4, 2201) - 0.5), l2 = Math.abs(fbm(x * 6 + 4, y * 6, z * 6, 3, 2202) - 0.5);
+  c = mix(c, [150, 100, 70], smooth(0.02, 0.0, l1) * 0.8);                  // линии-трещины
+  return mix(c, [170, 120, 90], smooth(0.015, 0.0, l2) * 0.5);
+});
+const makeGanymedeMap = () => iceMoonMap(2300, [190, 182, 170], [104, 94, 84], 260, (c, x, y, z) =>
+  mix(c, [92, 82, 72], smooth(0.5, 0.56, fbm(x * 1.8 + 9, y * 1.8, z * 1.8, 4, 2301)) * 0.7));
+const makeCallistoMap = () => iceMoonMap(2400, [120, 108, 94], [62, 54, 46], 700);
+const makeTitanMap = () => paintSphere(512, 256, (x, y, z, lat) =>
+  mix([214, 156, 72], [180, 122, 52], 0.5 + 0.3 * Math.sin(lat * 4) + 0.2 * (fbm(x * 3, y * 8, z * 3, 3, 2500) - 0.5)));
+const makeMimasMap = () => iceMoonMap(2600, [214, 212, 208], [150, 148, 146], 380, (c, x, y, z, lat, u) =>
+  mix(c, [120, 118, 116], smooth(1.0, 0.7, Math.hypot(dLonU(u, 0.25), lat * 1.2) / 0.32) * 0.6));   // кратер Гершель
+const makeEnceladusMap = () => iceMoonMap(2700, [248, 250, 252], [210, 220, 228], 120, (c, x, y, z, lat) => {
+  const stripe = Math.abs(Math.sin((y + 0.08 * fbm(x * 4, y * 4, z * 4, 3, 2701)) * 40));   // «тигровые полосы» у южного полюса
+  return mix(c, [150, 190, 210], smooth(-1.05, -1.25, lat) * smooth(0.15, 0.0, stripe) * 0.8);
+});
+const makeTethysMap = () => iceMoonMap(2800, [222, 220, 216], [168, 166, 162], 360);
+const makeDioneMap = () => iceMoonMap(2900, [216, 214, 210], [150, 148, 146], 320);
+const makeRheaMap = () => iceMoonMap(3000, [210, 208, 204], [140, 138, 136], 480);
+const makeIapetusMap = () => iceMoonMap(3100, [224, 220, 210], [170, 164, 152], 260, (c, x, y, z, lat, u) =>   // тёмная Область Кассини на ведущей стороне
+  mix(c, [52, 38, 28], smooth(-0.05, 0.15, Math.cos(dLonU(u, 0.25)) * Math.cos(lat) + 0.08 * (fbm(x * 5, y * 5, z * 5, 3, 3101) - 0.5))));
 function makeSunMap() {
   return paintSphere(512, 256, (x, y, z) => {
     const n = fbm(x * 9, y * 9, z * 9, 4, 1200), b = fbm(x * 2.5, y * 2.5, z * 2.5, 3, 1201);
@@ -491,8 +542,8 @@ const PLANETS = [
   { key: 'venus',   name: 'Венера',   R: kmR(6051.8), day: 243.025, tilt: 177.36, color: '#ecd193', focus: 5,  map: makeVenusMap, atmo: ['1.0,0.85,0.5', 3.0] },
   { key: 'emb',     name: 'Земля',    R: 1,           color: '#6fb7ff' },
   { key: 'mars',    name: 'Марс',     R: PHYS.marsRadius, color: '#ff8a5c' },
-  { key: 'jupiter', name: 'Юпитер',   R: kmR(69911),  day: 0.41354, tilt: 3.13,  color: '#e0b98c', focus: 55,  map: makeJupiterMap, flat: 0.935 },
-  { key: 'saturn',  name: 'Сатурн',   R: kmR(58232),  day: 0.44401, tilt: 26.73, color: '#ead39c', focus: 70,  map: makeSaturnMap, flat: 0.902,
+  { key: 'jupiter', name: 'Юпитер',   R: kmR(69911),  day: 0.41354, tilt: 3.13,  color: '#e0b98c', focus: 110,  map: makeJupiterMap, flat: 0.935 },
+  { key: 'saturn',  name: 'Сатурн',   R: kmR(58232),  day: 0.44401, tilt: 26.73, color: '#ead39c', focus: 120, map: makeSaturnMap, flat: 0.902,
     ring: { inner: 1.235, outer: 2.27, fn: saturnRingFn } },
   { key: 'uranus',  name: 'Уран',     R: kmR(25362),  day: 0.71833, tilt: 97.77, color: '#a8e0e8', focus: 22,  map: makeUranusMap, flat: 0.977,
     ring: { inner: 1.6, outer: 2.03, fn: uranusRingFn } },
@@ -532,6 +583,35 @@ const marsMoonLines = MARS_MOONS.map(m => {
   marsTiltG.add(l); return l;
 });
 
+/* Крупные спутники Юпитера и Сатурна. Средние элементы JPL на J2000: a (км), период (сут), средняя долгота L0 = Ω + ω + M (°).
+   Орбиты круговые в плоскости экватора планеты (у Япета — с наклоном). Размеры реальные.
+   Расстояния по умолчанию сжаты логарифмически (rc, в радиусах планеты), переключатель включает настоящие. */
+const GIANT_MOONS = [
+  { key: 'io',        name: 'Ио',       planet: 'jupiter', km: 1821.6, a: 421800,  period: 1.762732,  L0: 20.0,  color: '#e8d27a', map: makeIoMap },
+  { key: 'europa',    name: 'Европа',   planet: 'jupiter', km: 1560.8, a: 671100,  period: 3.525463,  L0: 214.4, color: '#e6dccb', map: makeEuropaMap },
+  { key: 'ganymede',  name: 'Ганимед',  planet: 'jupiter', km: 2634.1, a: 1070400, period: 7.155588,  L0: 221.6, color: '#bdb3a6', map: makeGanymedeMap },
+  { key: 'callisto',  name: 'Каллисто', planet: 'jupiter', km: 2410.3, a: 1882700, period: 16.690440, L0: 80.3,  color: '#a39582', map: makeCallistoMap },
+  { key: 'mimas',     name: 'Мимас',    planet: 'saturn',  km: 198.2,  a: 186000,  period: 0.942422,  L0: 141.9, color: '#cfcdc8', map: makeMimasMap },
+  { key: 'enceladus', name: 'Энцелад',  planet: 'saturn',  km: 252.1,  a: 238400,  period: 1.370218,  L0: 176.5, color: '#eef4f8', map: makeEnceladusMap },
+  { key: 'tethys',    name: 'Тефия',    planet: 'saturn',  km: 531.1,  a: 295000,  period: 1.887802,  L0: 248.3, color: '#d8d6d2', map: makeTethysMap },
+  { key: 'dione',     name: 'Диона',    planet: 'saturn',  km: 561.4,  a: 377700,  period: 2.736916,  L0: 328.0, color: '#d2d0cc', map: makeDioneMap },
+  { key: 'rhea',      name: 'Рея',      planet: 'saturn',  km: 763.8,  a: 527200,  period: 4.517503,  L0: 209.5, color: '#cbc9c5', map: makeRheaMap },
+  { key: 'titan',     name: 'Титан',    planet: 'saturn',  km: 2574.7, a: 1221900, period: 15.945448, L0: 168.6, color: '#e0a65a', map: makeTitanMap, atmo: ['1.0,0.62,0.25', 3.2] },
+  { key: 'iapetus',   name: 'Япет',     planet: 'saturn',  km: 734.5,  a: 3561700, period: 79.331002, L0: 55.8,  color: '#b8ad9c', map: makeIapetusMap, incl: 15 },
+];
+const GM = Object.fromEntries(GIANT_MOONS.map(m => [m.key, m]));
+for (const m of GIANT_MOONS) {
+  const host = P[m.planet], Rkm = host.R * R_EARTH_KM;
+  m.r = kmR(m.km);
+  m.rReal = kmR(m.a);
+  m.rc = host.R * (1.35 + Math.log(m.a / Rkm));
+  m.plane = new THREE.Group(); m.plane.rotation.x = -(m.incl || 0) * DEG; host.tiltG.add(m.plane);
+  m.pivot = new THREE.Group(); m.plane.add(m.pivot);
+  m.line = orbitLine(new THREE.Color(m.color).multiplyScalar(0.8), 0.28, 128); m.plane.add(m.line);
+  m.world = new THREE.Vector3();
+}
+const giantMoonRadius = (m, blend) => m.rc + (m.rReal - m.rc) * blend;
+
 /* Построение тел — по шагам, чтобы показывать прогресс */
 let earth, clouds, moon, mars, sun, marsMoons = [];
 const BUILD = [
@@ -568,6 +648,13 @@ const BUILD = [
     if (p.atmo) p.tiltG.add(atmosphere(p.R * 1.05, p.atmo[0], p.atmo[1]));
     if (p.ring) p.tiltG.add(ringMesh(p.R * p.ring.inner, p.R * p.ring.outer, ringStrip(p.ring.inner, p.ring.outer, p.ring.fn)));
   }]),
+  ...['jupiter', 'saturn'].map(key => ['спутники: ' + P[key].name, () => {
+    for (const m of GIANT_MOONS.filter(m => m.planet === key)) {
+      m.mesh = new THREE.Mesh(new THREE.SphereGeometry(m.r, 48, 32), new THREE.MeshLambertMaterial({ map: srgb(m.map()) }));
+      m.pivot.add(m.mesh);
+      if (m.atmo) m.pivot.add(atmosphere(m.r * 1.06, m.atmo[0], m.atmo[1]));
+    }
+  }]),
 ];
 
 /* ---------- Интерфейс ---------- */
@@ -588,7 +675,7 @@ function speedLabel(v) {
 ui.speed.addEventListener('input', () => ui.speedVal.textContent = speedLabel(speedFromSlider()));
 ui.play.addEventListener('click', () => { playing = !playing; ui.play.textContent = playing ? 'Пауза' : 'Пуск'; });
 $('todayBtn').addEventListener('click', () => { simDays = nowDays(); });
-const allOrbitLines = () => [moonOrbitLine, earthWobbleLine, ...marsMoonLines, ...PLANETS.map(p => p.orbit)];
+const allOrbitLines = () => [moonOrbitLine, earthWobbleLine, ...marsMoonLines, ...GIANT_MOONS.map(m => m.line), ...PLANETS.map(p => p.orbit)];
 ui.showOrbits.addEventListener('change', () => allOrbitLines().forEach(l => l.visible = ui.showOrbits.checked));
 
 // подписи тел
@@ -598,6 +685,7 @@ const TAGS = [
   { id: 'moon', label: 'Луна', color: '#c9d2e0', focus: 'moon' },
   { id: 'bary', label: 'барицентр', cls: 'bary', focus: 'bary' },
   ...MARS_MOONS.map(m => ({ id: m.key, label: m.name, cls: 'minor', focus: 'mars' })),
+  ...GIANT_MOONS.map(m => ({ id: m.key, label: m.name, cls: 'minor', color: m.color, focus: m.key })),
 ];
 for (const t of TAGS) {
   const b = document.createElement('button');
@@ -610,6 +698,7 @@ for (const t of TAGS) {
 /* Камера */
 const FOCUS_DIST = { sun: 1900, earth: 32, moon: 2.4, bary: 32, mars: 7 };
 PLANETS.forEach(p => { if (p.focus) FOCUS_DIST[p.key] = p.focus; });
+GIANT_MOONS.forEach(m => { FOCUS_DIST[m.key] = Math.max(0.6, m.r * 9); });
 let focus = 'sun', flying = 0;
 function setFocus(name) { focus = name; flying = 1; ui.focus.value = name; }
 ui.focus.addEventListener('change', () => setFocus(ui.focus.value));
@@ -671,7 +760,7 @@ const moonDir = new THREE.Vector3(), v3 = new THREE.Vector3(), v4 = new THREE.Ve
 const earthW = new THREE.Vector3(), moonW = new THREE.Vector3(), sunW = new THREE.Vector3();
 const marsMoonW = MARS_MOONS.map(() => new THREE.Vector3());
 const clock = new THREE.Clock();
-let orbitsDay = -1e9, orbitsBlend = -1;
+let orbitsDay = -1e9, orbitsBlend = -1, giantOrbitsBlend = -1;
 if (matchMedia('(prefers-reduced-motion: reduce)').matches) ui.speed.value = 250;
 ui.speedVal.textContent = speedLabel(speedFromSlider());
 
@@ -712,7 +801,23 @@ function frame() {
     pm.needsUpdate = pe.needsUpdate = true;
   }
 
+  // спутники Юпитера и Сатурна
+  const moonBlend = (distNow - PHYS.moonDistCompact) / (PHYS.moonDistReal - PHYS.moonDistCompact);
+  const redrawMoonOrbits = moonBlend !== giantOrbitsBlend;
+  for (const m of GIANT_MOONS) {
+    const r = giantMoonRadius(m, moonBlend), th = (m.L0 + d / m.period * 360) * DEG;
+    m.pivot.position.set(Math.cos(th) * r, 0, -Math.sin(th) * r);
+    m.pivot.rotation.y = th + Math.PI;     // к планете всегда одной стороной
+    if (redrawMoonOrbits) {
+      const a = m.line.geometry.attributes.position;
+      for (let i = 0; i <= 128; i++) { const t = i / 128 * Math.PI * 2; a.setXYZ(i, Math.cos(t) * r, 0, -Math.sin(t) * r); }
+      a.needsUpdate = true;
+    }
+  }
+  giantOrbitsBlend = moonBlend;
+
   scene.updateMatrixWorld();
+  GIANT_MOONS.forEach(m => m.pivot.getWorldPosition(m.world));
   earthPivot.getWorldPosition(earthW); moonPivot.getWorldPosition(moonW);
   PLANETS.forEach(p => p.sys.getWorldPosition(p.world));
 
@@ -744,7 +849,8 @@ function frame() {
   const date = new Date(J2000 + d * 86400000);
   $('rdDate').textContent = date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
   $('rdSunDist').textContent = fmt(P.emb.au.length() * AU_KM / 1e6, 1) + ' млн км';
-  const tgt = (P[focus] && focus !== 'emb') ? P[focus] : P.mars;
+  const tgtKey = GM[focus] ? GM[focus].planet : focus;   // для спутника — его планета
+  const tgt = (P[tgtKey] && tgtKey !== 'emb') ? P[tgtKey] : P.mars;
   const km = tgt.au.distanceTo(P.emb.au) * AU_KM;
   $('rdTgtName').textContent = 'Земля — ' + tgt.name;
   $('rdTgtDist').textContent = km > 1e9 ? fmt(km / 1e9, 2) + ' млрд км' : fmt(km / 1e6, 1) + ' млн км';
@@ -754,7 +860,7 @@ function frame() {
   document.documentElement.style.setProperty('--target', tgt.color);
 
   // камера
-  const focusPos = { sun: sunW, earth: earthW, moon: moonW, bary: P.emb.world }[focus] || P[focus].world;
+  const focusPos = { sun: sunW, earth: earthW, moon: moonW, bary: P.emb.world }[focus] || (P[focus] || GM[focus]).world;
   if (flying > 0) {
     const k = 1 - Math.exp(-dt * 3.5);
     const newT = controls.target.clone().lerp(focusPos, k);
@@ -784,6 +890,10 @@ function frame() {
   placeTag('moon', moonW, pxRadius(moonW, PHYS.moonRadius) + 4, earthW, 26);
   placeTag('bary', P.emb.world, -pxRadius(P.emb.world, 1) - 18, earthW, camDist < 60 ? 0 : 1e9);
   MARS_MOONS.forEach((m, k) => placeTag(m.key, marsMoonW[k], 10, P.mars.world, 34));
+  GIANT_MOONS.forEach(m => {   // подписи спутников — только рядом с планетой
+    const host = P[m.planet], near = camera.position.distanceTo(host.world) < 400;
+    placeTag(m.key, m.world, pxRadius(m.world, m.r) + 4, host.world, near ? pxRadius(host.world, host.R) + 14 : 1e9);
+  });
 
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
