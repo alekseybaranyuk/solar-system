@@ -59,7 +59,8 @@
   .group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .speed { flex: 1 1 260px; min-width: 0; }
   .speed input { flex: 1; min-width: 100px; accent-color: var(--sun); }
-  #speedVal { font-family: var(--f-mono); font-variant-numeric: tabular-nums; min-width: 92px; color: var(--sun); }
+  #speedVal { font-family: var(--f-mono); font-variant-numeric: tabular-nums; min-width: 230px; color: var(--sun); white-space: nowrap; }
+  #speedVal small { font-size: 11px; color: var(--muted); }
   .lbl { color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; font-size: 10.5px; }
 
   button, select {
@@ -122,7 +123,7 @@
 <div id="loading">Генерирую поверхности планет…</div>
 
 <header class="hud title">
-  <h1>Солнечная система <small>v11</small></h1>
+  <h1>Солнечная система <small>v11.1</small></h1>
   <p>Восемь планет и крупные спутники Юпитера и Сатурна стоят там, где они находятся сегодня, и движутся по настоящим орбитам. Размеры тел между собой реальные. Солнце уменьшено в 3,6 раза, спутники Марса увеличены, расстояния сжаты (можно включить настоящие). Нажмите на название тела, чтобы перелететь к нему. Ближайшая звезда — Альфа Центавра — в списке «Камера».</p>
 </header>
 
@@ -145,7 +146,7 @@
     <button id="playBtn" type="button">Пауза</button>
     <button id="todayBtn" type="button">Сегодня</button>
     <span class="lbl">Скорость</span>
-    <input id="speed" type="range" min="0" max="1000" value="440" aria-label="Скорость времени">
+    <input id="speed" type="range" title="Сколько модельного времени проходит за одну настоящую секунду" min="0" max="1000" value="440" aria-label="Скорость времени">
     <span id="speedVal">—</span>
   </div>
   <div class="group">
@@ -810,13 +811,22 @@ const J2000 = Date.UTC(2000, 0, 1, 12);
 const nowDays = () => (Date.now() - J2000) / 86400000;
 let simDays = nowDays(), playing = true;
 const speedFromSlider = () => Math.pow(10, -2 + 5 * ui.speed.value / 1000);   // 0,01 … 1000 сут/с
-function speedLabel(v) {
-  if (v < 1 / 24 * 1.5) return fmt(v * 24 * 60, 0) + ' мин/с';
-  if (v < 1) return fmt(v * 24, 1) + ' ч/с';
-  if (v < 365) return fmt(v, v < 10 ? 1 : 0) + ' сут/с';
-  return fmt(v / 365.25, 1) + ' г/с';
+function fmtDur(sec) {   // длительность в настоящих секундах → «3 мин 48 с»
+  if (sec < 10) return fmt(sec, 1) + ' с';
+  if (sec < 60) return Math.round(sec) + ' с';
+  if (sec < 3600) { const m = Math.floor(sec / 60), r = Math.round(sec % 60); return m + ' мин' + (r ? ' ' + r + ' с' : ''); }
+  const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60); return h + ' ч' + (m ? ' ' + m + ' мин' : '');
 }
-ui.speed.addEventListener('input', () => ui.speedVal.textContent = speedLabel(speedFromSlider()));
+function speedLabel(v) {   // v — модельных суток за секунду
+  let amount;
+  if (v < 1 / 24 * 1.5) amount = fmt(v * 24 * 60, 0) + ' мин';
+  else if (v < 1) amount = fmt(v * 24, 1) + ' ч';
+  else if (v < 365) amount = fmt(v, v < 10 ? 1 : 0) + ' сут';
+  else amount = fmt(v / 365.25, 1) + ' г.';
+  const hint = v < 0.5 ? 'сутки за ' + fmtDur(1 / v) : 'год за ' + fmtDur(365.25 / v);
+  return '1 с = ' + amount + ' <small>· ' + hint + '</small>';
+}
+ui.speed.addEventListener('input', () => ui.speedVal.innerHTML = speedLabel(speedFromSlider()));
 ui.play.addEventListener('click', () => { playing = !playing; ui.play.textContent = playing ? 'Пауза' : 'Пуск'; });
 $('todayBtn').addEventListener('click', () => { simDays = nowDays(); });
 /* Расстояние от Земли: пунктир, световой импульс и полоска настоящего масштаба */
@@ -1012,7 +1022,7 @@ const marsMoonW = MARS_MOONS.map(() => new THREE.Vector3());
 const clock = new THREE.Clock();
 let orbitsDay = -1e9, orbitsBlend = -1, giantOrbitsBlend = -1;
 if (matchMedia('(prefers-reduced-motion: reduce)').matches) ui.speed.value = 250;
-ui.speedVal.textContent = speedLabel(speedFromSlider());
+ui.speedVal.innerHTML = speedLabel(speedFromSlider());
 
 function drawPlanetOrbit(p, d) {
   const el = orbitalElements(p.key, d / 36525), a = p.orbit.geometry.attributes.position;
