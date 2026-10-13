@@ -110,10 +110,35 @@
   @media (prefers-reduced-motion: reduce) { #warp { transition: none; } }
   #loading { position: fixed; inset: 0; display: grid; place-items: center; color: var(--muted); font-family: var(--f-mono); font-size: 12px; z-index: 5; background: var(--void); }
 
+  #moreBtn { display: none; }
+  /* Телефон: компактная строка управления снизу, остальное — по кнопке «Ещё»; показания — короткой полосой сверху */
   @media (max-width: 640px) {
-    .title h1 { font-size: 20px; }
+    .title { top: calc(10px + env(safe-area-inset-top, 0px)); left: 12px; }
+    .title h1 { font-size: 18px; }
     .title p { display: none; }
-    .readout { top: auto; bottom: calc(16px + env(safe-area-inset-bottom, 0px) + var(--ctrl-h, 150px) + 96px); left: 16px; right: 16px; min-width: 0; grid-template-columns: auto auto auto auto; }
+    .readout {
+      top: calc(40px + env(safe-area-inset-top, 0px)); left: 12px; right: 12px; min-width: 0;
+      padding: 7px 10px; gap: 3px 10px; grid-template-columns: auto 1fr auto 1fr; font-size: 11px;
+    }
+    .readout dt { font-size: 9px; letter-spacing: 0.06em; }
+    .readout dd { white-space: nowrap; font-size: 10.5px; }
+    #rdSunName, #rdSunDist { display: none; }
+    .phase-row { display: none !important; }
+    .controls { width: calc(100vw - 24px); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); padding: 8px 10px; gap: 8px 10px; font-size: 12px; }
+    .controls .group > .lbl, .speed .lbl, #speedVal small { display: none; }
+    .controls:not(.open) .opt { display: none; }
+    .speed { flex: 1 1 100%; }
+    #speedVal { min-width: 0; }
+    .controls .group:nth-child(2) { flex: 1 1 100%; flex-wrap: nowrap; }
+    #focus { flex: 1; min-width: 0; }
+    #moreBtn { display: inline-block; }
+    .controls.open #moreBtn { border-color: var(--sun); color: var(--sun); }
+    .scale-strip { width: calc(100vw - 24px); bottom: calc(12px + env(safe-area-inset-bottom, 0px) + var(--ctrl-h, 150px) + 8px); }
+    body:has(.controls:not(.open)) .scale-strip { display: none; }
+    .tag { font-size: 10px; }
+    .tag.minor, .tag.bary { font-size: 9.5px; }
+    .dist-label { font-size: 10px; padding: 2px 6px; }
+    .dist-label b { font-size: 10.5px; }
   }
 </style>
 
@@ -123,7 +148,7 @@
 <div id="loading">Генерирую поверхности планет…</div>
 
 <header class="hud title">
-  <h1>Солнечная система <small>v11.1</small></h1>
+  <h1>Солнечная система <small>v12</small></h1>
   <p>Восемь планет и крупные спутники Юпитера и Сатурна стоят там, где они находятся сегодня, и движутся по настоящим орбитам. Размеры тел между собой реальные. Солнце уменьшено в 3,6 раза, спутники Марса увеличены, расстояния сжаты (можно включить настоящие). Нажмите на название тела, чтобы перелететь к нему. Ближайшая звезда — Альфа Центавра — в списке «Камера».</p>
 </header>
 
@@ -144,7 +169,7 @@
 <div class="hud controls" id="controls">
   <div class="group speed">
     <button id="playBtn" type="button">Пауза</button>
-    <button id="todayBtn" type="button">Сегодня</button>
+    <button id="todayBtn" class="opt" type="button">Сегодня</button>
     <span class="lbl">Скорость</span>
     <input id="speed" type="range" title="Сколько модельного времени проходит за одну настоящую секунду" min="0" max="1000" value="440" aria-label="Скорость времени">
     <span id="speedVal">—</span>
@@ -186,8 +211,9 @@
         <option value="proxb">Проксима b</option>
       </optgroup>
     </select>
+    <button id="moreBtn" type="button" aria-expanded="false" aria-controls="controls">Ещё</button>
   </div>
-  <div class="group">
+  <div class="group opt">
     <span class="dist-pick"><label class="chk"><input type="checkbox" id="showDist" checked> Расстояние</label>
       <label class="lbl" for="distFrom">от</label><select id="distFrom"><option value="sun">Солнца</option><option value="mercury">Меркурия</option><option value="venus">Венеры</option><option value="emb" selected>Земли</option><option value="mars">Марса</option><option value="jupiter">Юпитера</option><option value="saturn">Сатурна</option><option value="uranus">Урана</option><option value="neptune">Нептуна</option></select>
       <label class="lbl" for="distTo">до</label><select id="distTo" title="«тела в камере» — расстояние до того, что выбрано в списке «Камера»"><option value="cam" selected>тела в камере</option><option value="sun">Солнца</option><option value="mercury">Меркурия</option><option value="venus">Венеры</option><option value="emb">Земли</option><option value="mars">Марса</option><option value="jupiter">Юпитера</option><option value="saturn">Сатурна</option><option value="uranus">Урана</option><option value="neptune">Нептуна</option></select></span>
@@ -923,7 +949,7 @@ for (const t of TAGS) {
 const FOCUS_DIST = { sun: 1900, earth: 32, moon: 2.4, bary: 32, mars: 7 };
 PLANETS.forEach(p => { if (p.focus) FOCUS_DIST[p.key] = p.focus; });
 GIANT_MOONS.forEach(m => { FOCUS_DIST[m.key] = Math.max(0.6, m.r * 9); });
-let focus = 'sun', flying = 0, prevFocusKey = null;
+let focus = 'sun', flying = 1, prevFocusKey = null;
 const prevFocusPos = new THREE.Vector3();
 Object.entries(AC_BODIES).forEach(([k, b]) => { FOCUS_DIST[k] = b.focus; });
 function setFocus(name) {
@@ -953,6 +979,12 @@ function warpTo(name) {
   }, 500);
 }
 ui.focus.addEventListener('change', () => setFocus(ui.focus.value));
+$('moreBtn').addEventListener('click', () => {
+  const open = $('controls').classList.toggle('open');
+  $('moreBtn').setAttribute('aria-expanded', open);
+  $('moreBtn').textContent = open ? 'Скрыть' : 'Ещё';
+  requestAnimationFrame(() => document.documentElement.style.setProperty('--ctrl-h', $('controls').offsetHeight + 'px'));
+});
 $('strip').addEventListener('click', e => {   // надпись «Альфа Центавра →» в правом верхнем углу полоски
   const r = $('strip').getBoundingClientRect();
   if (e.clientY - r.top < 20 && e.clientX - r.left > r.width - 380) setFocus('acAB');
@@ -1145,7 +1177,7 @@ function frame() {
   if (snapCamera) {   // сразу после перелёта ставим камеру рядом с целью
     const off = camera.position.clone().sub(controls.target);
     if (off.lengthSq() < 1e-6) off.set(0, 0.5, 1);
-    off.normalize().multiplyScalar(FOCUS_DIST[focus]);
+    off.normalize().multiplyScalar(FOCUS_DIST[focus] * Math.max(1, 0.8 / camera.aspect));
     controls.target.copy(focusPos); camera.position.copy(focusPos).add(off);
     snapCamera = false;
   }
@@ -1157,7 +1189,7 @@ function frame() {
     const newT = controls.target.clone().lerp(focusPos, k);
     camera.position.add(newT.clone().sub(controls.target)); controls.target.copy(newT);
     const dir = camera.position.clone().sub(controls.target), len = dir.length();
-    const want = FOCUS_DIST[focus], newLen = len * Math.pow(want / len, k);
+    const want = FOCUS_DIST[focus] * Math.max(1, 0.8 / camera.aspect), newLen = len * Math.pow(want / len, k);
     camera.position.copy(controls.target).addScaledVector(dir.normalize(), newLen);
     if (controls.target.distanceTo(focusPos) < want * 0.01 && Math.abs(newLen / want - 1) < 0.02) flying = 0;
   } else {
@@ -1217,7 +1249,7 @@ function frame() {
       // подпись посередине линии
       // подпись ставится у той части линии, что в кадре: в обзоре — ближе к Земле, вблизи тела — рядом с ним
       const segL = a.distanceTo(b);
-      const bottomY = Math.min(view.y + view.h * 0.85, ($('stripBox').hidden || activeScene === 'ac' ? $('controls') : $('stripBox')).getBoundingClientRect().top - 24);
+      const bottomY = Math.min(view.y + view.h * 0.85, ($('stripBox').offsetHeight ? $('stripBox') : $('controls')).getBoundingClientRect().top - 24);
       const inFrame = q => q.ok && q.x > view.x + view.w * 0.12 && q.x < view.x + view.w * 0.88 && q.y > view.y + view.h * 0.25 && q.y < bottomY;
       let ok = false, mid = new THREE.Vector3();
       if (camDist > segL * 1.2) {            // вся линия в кадре: подпись ближе к Земле, если линия не слишком короткая
@@ -1235,9 +1267,11 @@ function frame() {
       lab.hidden = !ok;
       if (ok) sA.ok = true; else sA.ok = false;
       if (sA.ok) {
-        lab.style.left = sA.x + 'px'; lab.style.top = sA.y + 'px';
+        lab.style.top = sA.y + 'px';
         lab.style.setProperty('--line-color', lt.color);
         lab.innerHTML = '<b>' + lt.name + '</b> · ' + lt.text + (lt.note ? '<small>' + lt.note + '</small>' : '');
+        const hw = lab.offsetWidth / 2 + 8;   // не даём подписи уйти за край экрана
+        lab.style.left = THREE.MathUtils.clamp(sA.x, view.x + hw, view.x + view.w - hw) + 'px';
       }
     } else lab.hidden = true;
     $('stripBox').style.display = activeScene === 'ac' ? 'none' : '';
