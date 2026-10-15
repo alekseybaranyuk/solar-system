@@ -111,6 +111,24 @@
   #loading { position: fixed; inset: 0; display: grid; place-items: center; color: var(--muted); font-family: var(--f-mono); font-size: 12px; z-index: 5; background: var(--void); }
 
   #moreBtn { display: none; }
+  .info-card {
+    left: 16px; width: 300px; max-height: calc(100vh - 360px); overflow: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 14px 16px 12px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); font-size: 12.5px;
+  }
+  .info-card h2 { margin: 0 28px 2px 0; font: 700 20px/1.15 var(--f-display); letter-spacing: 0.03em; color: var(--card-color, var(--ink)); }
+  .info-card .kind { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+  .info-card dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; }
+  .info-card dt { color: var(--muted); font-size: 11.5px; }
+  .info-card dd { margin: 0; font-family: var(--f-mono); font-size: 11.5px; font-variant-numeric: tabular-nums; text-align: right; }
+  .info-card .live:not(:empty) { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .info-card .live dd { color: var(--card-color, var(--ink)); }
+  .info-card p { margin: 10px 0 0; line-height: 1.45; color: var(--ink); }
+  #infoClose { position: absolute; top: 8px; right: 8px; padding: 4px 9px; font-size: 16px; line-height: 1; border-color: transparent; color: var(--muted); }
+  #infoClose:hover { color: var(--ink); border-color: var(--line); }
+  .tag.craft { font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: none; }
+  .credit { color: var(--muted); font-size: 10.5px; }
+  .credit a { color: var(--muted); }
   /* Телефон: компактная строка управления снизу, остальное — по кнопке «Ещё»; показания — короткой полосой сверху */
   @media (max-width: 640px) {
     .title { top: calc(10px + env(safe-area-inset-top, 0px)); left: 12px; }
@@ -139,6 +157,12 @@
     .tag.minor, .tag.bary { font-size: 9.5px; }
     .dist-label { font-size: 10px; padding: 2px 6px; }
     .dist-label b { font-size: 10.5px; }
+    .info-card { left: 12px; right: 12px; width: auto; top: auto !important; bottom: calc(12px + env(safe-area-inset-bottom, 0px) + var(--ctrl-h, 110px) + 8px); max-height: 30vh; padding: 10px 12px; font-size: 11px; }
+    .info-card .kind { margin-bottom: 6px; }
+    .info-card dl { gap: 3px 10px; }
+    .controls.open ~ .info-card, body:has(.controls.open) .info-card { display: none; }
+    .info-card h2 { font-size: 16px; }
+    .info-card p { margin-top: 6px; }
   }
 </style>
 
@@ -148,7 +172,7 @@
 <div id="loading">Генерирую поверхности планет…</div>
 
 <header class="hud title">
-  <h1>Солнечная система <small>v12</small></h1>
+  <h1>Солнечная система <small>v13</small></h1>
   <p>Восемь планет и крупные спутники Юпитера и Сатурна стоят там, где они находятся сегодня, и движутся по настоящим орбитам. Размеры тел между собой реальные. Солнце уменьшено в 3,6 раза, спутники Марса увеличены, расстояния сжаты (можно включить настоящие). Нажмите на название тела, чтобы перелететь к нему. Ближайшая звезда — Альфа Центавра — в списке «Камера».</p>
 </header>
 
@@ -203,6 +227,13 @@
         <option value="titan">Титан</option>
         <option value="iapetus">Япет</option>
       </optgroup>
+      <optgroup label="Космические аппараты">
+        <option value="iss">МКС</option>
+        <option value="jwst">«Джеймс Уэбб»</option>
+        <option value="nh">New Horizons</option>
+        <option value="v2">«Вояджер-2»</option>
+        <option value="v1">«Вояджер-1»</option>
+      </optgroup>
       <optgroup label="Альфа Центавра (4,37 св. года)">
         <option value="acAB">Альфа Центавра A и B</option>
         <option value="acA">Альфа Центавра A</option>
@@ -220,10 +251,13 @@
     <label class="chk"><input type="checkbox" id="linearScale"> Настоящие расстояния между планетами</label>
     <label class="chk"><input type="checkbox" id="realScale"> Настоящие расстояния до спутников</label>
     <label class="chk"><input type="checkbox" id="showOrbits" checked> Орбиты</label>
+    <span class="dist-pick"><label class="lbl" for="trails">Следы</label><select id="trails" title="След за последние месяцы. «Вид с Земли» показывает, как планеты движутся относительно Земли — с петлями попятного движения"><option value="off" selected>нет</option><option value="sun">от Солнца</option><option value="earth">вид с Земли</option></select></span>
     <label class="chk" title="Земля и Луна обращаются вокруг общего центра масс (барицентра), который лежит внутри Земли в 4700 км от её центра. За месяц центр Земли описывает вокруг него маленький круг. Галочка увеличивает этот круг в 10 раз, чтобы его было видно. Лучше всего смотреть с камерой «Барицентр Земля–Луна»."><input type="checkbox" id="exaggerate"> Показать движение Земли вокруг барицентра (×10)</label>
+    <small class="credit">Карты поверхностей: <a href="https://www.solarsystemscope.com/textures/" target="_blank" rel="noopener">Solar System Scope</a>, CC BY 4.0</small>
   </div>
 </div>
 
+<aside class="hud info-card" id="info" hidden aria-live="polite"><button id="infoClose" type="button" aria-label="Закрыть карточку">×</button><div id="infoBody"></div></aside>
 <div id="tags"></div>
 <div id="tagsAC" hidden></div>
 <div id="warp" aria-live="polite"></div>
@@ -591,10 +625,27 @@ function orbitLine(color, opacity, points = 360, onTop = false) {
   if (onTop) line.renderOrder = 10;
   line.frustumCulled = false; return line;
 }
+/* Настоящие карты поверхностей (Solar System Scope, CC BY 4.0). Если не загрузились — остаются нарисованные программой. */
+const TEX_FILES = { earth: 'earth.jpg', earthSpec: 'earth_spec.jpg', earthClouds: 'earth_clouds.jpg', moon: 'moon.jpg',
+  mercury: 'mercury.jpg', mars: 'mars.jpg', jupiter: 'jupiter.jpg', saturn: 'saturn.jpg', uranus: 'uranus.jpg', neptune: 'neptune.jpg', saturnRing: 'saturn_ring.png' };
+const REAL = {};
+function loadRealTextures() {
+  if (location.protocol === 'file:') return Promise.resolve();   // из локального файла браузер не даёт картинки в WebGL
+  const loader = new THREE.TextureLoader();
+  return Promise.all(Object.entries(TEX_FILES).map(([k, f]) => new Promise(done => {
+    const timer = setTimeout(done, 15000);
+    loader.load('textures/' + f, t => {
+      clearTimeout(timer);
+      t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+      if (k !== 'earthSpec' && k !== 'earthClouds') t.encoding = THREE.sRGBEncoding;
+      REAL[k] = t; done();
+    }, undefined, () => { clearTimeout(timer); done(); });
+  })));
+}
 function ringMesh(inner, outer, strip, opacity = 1) {
   const g = new THREE.RingGeometry(inner, outer, 160, 1), p = g.attributes.position, uv = g.attributes.uv, v = new THREE.Vector3();
   for (let i = 0; i < p.count; i++) { v.fromBufferAttribute(p, i); uv.setXY(i, (v.length() - inner) / (outer - inner), 0.5); }
-  const t = srgb(strip);
+  const t = strip.isTexture ? strip : srgb(strip);
   const m = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: t, color: 0xdddddd, transparent: true, opacity, side: THREE.DoubleSide, depthWrite: false }));
   m.rotation.x = -Math.PI / 2; return m;
 }
@@ -784,20 +835,146 @@ function buildAC() {
 const sceneOf = key => AC_BODIES[key] ? 'ac' : 'sol';
 let activeScene = 'sol', snapCamera = false;
 
+/* ---------- Космические аппараты ----------
+   «Вояджеры» и New Horizons уходят из Солнечной системы почти по прямой: положение = направление × (r0 + v·t).
+   Данные на 15 октября 2026 (heavens-above.com). Модель верна после последнего пролёта планеты. */
+const CRAFT_EPOCH_D = (Date.UTC(2026, 9, 15) - Date.UTC(2000, 0, 1, 12)) / 86400000;
+const dayOf = (y, m, dd) => (Date.UTC(y, m - 1, dd) - Date.UTC(2000, 0, 1, 12)) / 86400000;
+const CRAFT = [
+  { key: 'iss',  name: 'МКС', color: '#e8eef7', kind: 'iss', from: dayOf(1998, 11, 20), focus: 3.4 },
+  { key: 'jwst', name: '«Джеймс Уэбб»', color: '#ffd27a', kind: 'l2', from: dayOf(2022, 1, 24), focus: 26 },
+  { key: 'nh',   name: 'New Horizons', color: '#9fe3c4', kind: 'escape', ra: 290.25, dec: -20.083, r0: 64.668, v: 2.865, from: dayOf(2015, 7, 14), focus: 380 },
+  { key: 'v2',   name: '«Вояджер-2»', color: '#b6c8ff', kind: 'escape', ra: 302.75, dec: -59.733, r0: 142.897, v: 3.219, from: dayOf(1989, 8, 25), focus: 380 },
+  { key: 'v1',   name: '«Вояджер-1»', color: '#ffc6e0', kind: 'escape', ra: 259.25, dec: 12.417, r0: 170.691, v: 3.569, from: dayOf(1980, 11, 12), focus: 380 },
+];
+const CR = Object.fromEntries(CRAFT.map(c => [c.key, c]));
+for (const c of CRAFT) {
+  c.world = new THREE.Vector3(); c.au = new THREE.Vector3();
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
+  c.obj = new THREE.Points(g, new THREE.PointsMaterial({ color: c.color, size: 7, sizeAttenuation: false, transparent: true, depthWrite: false }));
+  if (c.kind === 'escape') c.dir = equToScene(c.ra, c.dec, new THREE.Vector3());
+}
+// МКС: круговая орбита 420 км с наклоном 51,6° к экватору (в масштабе — над самой поверхностью)
+const issPlane = new THREE.Group(); issPlane.rotation.x = 51.64 * DEG; earthTiltG.add(issPlane);
+const issPivot = new THREE.Group(); issPlane.add(issPivot); issPivot.add(CR.iss.obj);
+const issOrbit = orbitLine('#e8eef7', 0.25, 96); issPlane.add(issOrbit);
+{ const p = issOrbit.geometry.attributes.position, r = 6791 / 6371; for (let i = 0; i <= 96; i++) { const t = i / 96 * Math.PI * 2; p.setXYZ(i, Math.cos(t) * r, 0, -Math.sin(t) * r); } }
+for (const c of CRAFT) if (c.kind !== 'iss') scene.add(c.obj);
+
+/* ---------- Следы планет ---------- */
+const TRAIL_N = 240;
+const trailLines = [...PLANETS.map(p => ({ key: p.key, color: new THREE.Color(p.color) })), { key: 'sun', color: new THREE.Color('#ffc56e') }].map(t => {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TRAIL_N * 3), 3));
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(TRAIL_N * 3), 3));
+  t.line = new THREE.Line(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+  t.line.frustumCulled = false; t.line.visible = false; scene.add(t.line);
+  return t;
+});
+const trailEarth = Array.from({ length: TRAIL_N }, () => new THREE.Vector3());
+let trailState = '';
+function updateTrails(d, mode) {
+  const key = mode + '|' + d.toFixed(2) + '|' + distBlend.toFixed(3);
+  if (key === trailState) return; trailState = key;
+  const tv = new THREE.Vector3(), tw = new THREE.Vector3();
+  if (mode === 'earth') for (let i = 0; i < TRAIL_N; i++) mapAU(heliocentric('emb', d - 400 * (1 - i / (TRAIL_N - 1)), tv), trailEarth[i]);
+  for (const t of trailLines) {
+    const show = mode !== 'off' && !(mode === 'earth' && t.key === 'emb') && !(mode === 'sun' && t.key === 'sun');
+    t.line.visible = show; if (!show) continue;
+    const pa = t.line.geometry.attributes.position, ca = t.line.geometry.attributes.color;
+    const span = mode === 'earth' ? 400 : 0.2 * 365.25 * Math.pow(ORBITS[t.key].el[0], 1.5);   // вид с Земли — 2 года, от Солнца — пятая часть орбиты
+    for (let i = 0; i < TRAIL_N; i++) {
+      const f = i / (TRAIL_N - 1), td = d - span * (1 - f);
+      if (t.key === 'sun') tw.set(0, 0, 0); else mapAU(heliocentric(t.key, td, tv), tw);
+      if (mode === 'earth') tw.sub(trailEarth[i]).add(P.emb.sys.position);   // относительно Земли, приложено к её нынешнему месту
+      pa.setXYZ(i, tw.x, tw.y, tw.z);
+      const k = Math.pow(f, 1.6) * (mode === 'earth' ? 0.7 : 0.95);
+      ca.setXYZ(i, t.color.r * k, t.color.g * k, t.color.b * k);
+    }
+    pa.needsUpdate = ca.needsUpdate = true;
+  }
+}
+
+/* ---------- Справка о телах ---------- */
+const INFO = {
+  sun: { name: 'Солнце', kind: 'Звезда, жёлтый карлик', color: '#ffc56e', rows: [['Диаметр', '1,39 млн км (109 Земель)'], ['Масса', '333 000 Земель'], ['Поверхность', '≈ 5 500 °C'], ['Ядро', '≈ 15 млн °C'], ['Возраст', '4,6 млрд лет']], fact: 'В Солнце 99,86 % массы всей Солнечной системы.' },
+  mercury: { name: 'Меркурий', kind: 'Планета земной группы', rows: [['Диаметр', '4 879 км (0,38 Земли)'], ['Масса', '0,055 Земли'], ['Солнечные сутки', '176 земных суток'], ['Год', '88 суток'], ['Температура', '−180 … +430 °C'], ['Спутники', 'нет']], fact: 'Солнечные сутки на Меркурии длятся два его года.' },
+  venus: { name: 'Венера', kind: 'Планета земной группы', rows: [['Диаметр', '12 104 км (0,95 Земли)'], ['Масса', '0,815 Земли'], ['Сутки', '243 земных суток, вращение обратное'], ['Год', '225 суток'], ['Температура', '≈ +465 °C'], ['Спутники', 'нет']], fact: 'Самая горячая планета: облака из серной кислоты и давление в 92 раза выше земного. В модели показаны облака — поверхность под ними не видна.' },
+  earth: { name: 'Земля', kind: 'Наш дом', rows: [['Диаметр', '12 742 км'], ['Масса', '5,97·10²⁴ кг'], ['Сутки', '23 ч 56 мин'], ['Год', '365,25 суток'], ['Средняя температура', '≈ +15 °C'], ['Спутники', '1']], fact: 'Единственная известная планета с жизнью. Вода покрывает 71 % поверхности. Земля в модели повёрнута так, как сейчас на самом деле: освещена та сторона, где день.' },
+  moon: { name: 'Луна', kind: 'Спутник Земли', rows: [['Диаметр', '3 474 км (0,27 Земли)'], ['Масса', '0,012 Земли'], ['Оборот', '27,3 суток'], ['Температура', '−170 … +120 °C']], fact: 'Луна удаляется от Земли примерно на 3,8 см в год.' },
+  mars: { name: 'Марс', kind: 'Планета земной группы', rows: [['Диаметр', '6 779 км (0,53 Земли)'], ['Масса', '0,107 Земли'], ['Сутки', '24 ч 37 мин'], ['Год', '687 суток'], ['Средняя температура', '≈ −63 °C'], ['Спутники', '2: Фобос и Деймос']], fact: 'Вулкан Олимп высотой около 22 км — самая высокая гора Солнечной системы.' },
+  jupiter: { name: 'Юпитер', kind: 'Газовый гигант', rows: [['Диаметр', '139 820 км (11 Земель)'], ['Масса', '318 Земель'], ['Сутки', '9 ч 56 мин'], ['Год', '11,9 года'], ['У верхушки облаков', '≈ −110 °C'], ['Спутники', 'больше 90']], fact: 'Большое красное пятно — шторм шире Земли. Его наблюдают уже почти 200 лет.' },
+  saturn: { name: 'Сатурн', kind: 'Газовый гигант', rows: [['Диаметр', '116 460 км (9,1 Земли)'], ['Масса', '95 Земель'], ['Сутки', '10 ч 33 мин'], ['Год', '29,4 года'], ['У верхушки облаков', '≈ −140 °C'], ['Спутники', 'больше 270']], fact: 'Средняя плотность Сатурна меньше, чем у воды. Кольца шириной 280 000 км, а толщиной в основном от 10 метров до километра.' },
+  uranus: { name: 'Уран', kind: 'Ледяной гигант', rows: [['Диаметр', '50 724 км (4 Земли)'], ['Масса', '14,5 Земли'], ['Сутки', '17 ч 14 мин, вращение обратное'], ['Год', '84 года'], ['Температура', '≈ −195 °C'], ['Спутники', '29']], fact: 'Уран лежит на боку: ось наклонена на 98°. На полюсах по 42 года длится день и столько же — ночь.' },
+  neptune: { name: 'Нептун', kind: 'Ледяной гигант', rows: [['Диаметр', '49 244 км (3,9 Земли)'], ['Масса', '17,1 Земли'], ['Сутки', '16 ч 6 мин'], ['Год', '165 лет'], ['Температура', '≈ −200 °C'], ['Спутники', '16']], fact: 'Самые сильные ветры Солнечной системы — до 2 100 км/ч. Нептун нашли в 1846 году по расчётам, ещё до того как увидели в телескоп.' },
+  io: { name: 'Ио', kind: 'Спутник Юпитера', rows: [['Диаметр', '3 643 км'], ['Оборот', '1,77 суток']], fact: 'Самое вулканически активное тело Солнечной системы — больше 400 действующих вулканов.' },
+  europa: { name: 'Европа', kind: 'Спутник Юпитера', rows: [['Диаметр', '3 122 км'], ['Оборот', '3,55 суток']], fact: 'Под ледяной корой — солёный океан, воды в нём, по оценкам, больше, чем во всех океанах Земли.' },
+  ganymede: { name: 'Ганимед', kind: 'Спутник Юпитера', rows: [['Диаметр', '5 268 км'], ['Оборот', '7,15 суток']], fact: 'Крупнейший спутник Солнечной системы — больше Меркурия. Единственный спутник со своим магнитным полем.' },
+  callisto: { name: 'Каллисто', kind: 'Спутник Юпитера', rows: [['Диаметр', '4 821 км'], ['Оборот', '16,7 суток']], fact: 'Одна из самых изрытых кратерами поверхностей в Солнечной системе.' },
+  mimas: { name: 'Мимас', kind: 'Спутник Сатурна', rows: [['Диаметр', '396 км'], ['Оборот', '0,94 суток']], fact: 'Кратер Гершель шириной в треть спутника делает Мимас похожим на «Звезду смерти».' },
+  enceladus: { name: 'Энцелад', kind: 'Спутник Сатурна', rows: [['Диаметр', '504 км'], ['Оборот', '1,37 суток']], fact: 'Из трещин у южного полюса бьют гейзеры воды из подлёдного океана.' },
+  tethys: { name: 'Тефия', kind: 'Спутник Сатурна', rows: [['Диаметр', '1 062 км'], ['Оборот', '1,89 суток']], fact: 'Почти целиком состоит из водяного льда.' },
+  dione: { name: 'Диона', kind: 'Спутник Сатурна', rows: [['Диаметр', '1 123 км'], ['Оборот', '2,74 суток']], fact: 'На ведомой стороне — ледяные обрывы высотой в сотни метров.' },
+  rhea: { name: 'Рея', kind: 'Спутник Сатурна', rows: [['Диаметр', '1 527 км'], ['Оборот', '4,52 суток']], fact: 'Второй по размеру спутник Сатурна.' },
+  titan: { name: 'Титан', kind: 'Спутник Сатурна', rows: [['Диаметр', '5 150 км'], ['Оборот', '15,9 суток']], fact: 'Плотная атмосфера и озёра из жидкого метана. В 2005 году на Титан сел зонд «Гюйгенс».' },
+  iapetus: { name: 'Япет', kind: 'Спутник Сатурна', rows: [['Диаметр', '1 469 км'], ['Оборот', '79,3 суток']], fact: 'Одна половина тёмная, как уголь, другая светлая, как снег.' },
+  acAB: { name: 'Альфа Центавра A и B', kind: 'Двойная звезда', rows: [['Расстояние', '4,37 св. года'], ['Период пары', '79,9 года'], ['Между звёздами', '11 … 36 а.е.']], fact: 'На нашем небе A и B сливаются в одну звезду — третью по яркости после Сириуса и Канопуса.' },
+  acA: { name: 'Альфа Центавра A', kind: 'Звезда, жёлтый карлик (G2 V)', rows: [['Масса', '1,1 Солнца'], ['Радиус', '1,22 Солнца'], ['Светимость', '≈ 1,5 Солнца']], fact: 'Собственное имя — Ригиль Кентаурус, «нога Кентавра».' },
+  acB: { name: 'Альфа Центавра B', kind: 'Звезда, оранжевый карлик (K1 V)', rows: [['Масса', '0,91 Солнца'], ['Радиус', '0,86 Солнца'], ['Светимость', '≈ 0,5 Солнца']], fact: 'Собственное имя Толиман утверждено в 2018 году.' },
+  prox: { name: 'Проксима Центавра', kind: 'Звезда, красный карлик (M5.5 V)', rows: [['Масса', '0,12 Солнца'], ['Радиус', '0,15 Солнца'], ['Светимость', '0,0017 Солнца'], ['Расстояние', '4,24 св. года']], fact: 'Ближайшая к Солнцу звезда. Без телескопа её не видно.' },
+  proxb: { name: 'Проксима b', kind: 'Экзопланета', rows: [['Масса', 'не меньше 1,07 Земли'], ['Год', '11,2 суток'], ['До звезды', '7,3 млн км']], fact: 'Находится там, где на поверхности может быть жидкая вода. Как она выглядит — неизвестно, вид в модели условный.' },
+  iss: { name: 'МКС', kind: 'Международная космическая станция', rows: [['Первый модуль', 'ноябрь 1998'], ['Высота', '≈ 420 км'], ['Скорость', '7,66 км/с'], ['Оборот', '92 минуты'], ['Экипаж', 'постоянно с ноября 2000']], fact: 'Видна с Земли без телескопа — как яркая звезда, которая за несколько минут пересекает небо. Точка в модели много больше станции.' },
+  jwst: { name: '«Джеймс Уэбб»', kind: 'Космический телескоп', rows: [['Запуск', '25 декабря 2021'], ['Где', 'точка L2, 1,5 млн км от Земли'], ['Зеркало', '6,5 м']], fact: 'Смотрит в инфракрасном свете и видит галактики, свет от которых летел больше 13 млрд лет. Всегда держится за Землёй, напротив Солнца.' },
+  nh: { name: 'New Horizons', kind: 'Межпланетный зонд', rows: [['Запуск', '19 января 2006'], ['Плутон', '14 июля 2015'], ['Аррокот', '1 января 2019'], ['Скорость', '13,6 км/с от Солнца']], fact: 'Первым сфотографировал Плутон вблизи. В модели показан после пролёта Плутона.' },
+  v2: { name: '«Вояджер-2»', kind: 'Межпланетный зонд', rows: [['Запуск', '20 августа 1977'], ['Пролёты', 'Юпитер, Сатурн, Уран, Нептун'], ['Межзвёздное пространство', 'с 5 ноября 2018'], ['Скорость', '15,3 км/с от Солнца']], fact: 'Единственный аппарат, побывавший у Урана (1986) и Нептуна (1989). В модели показан после Нептуна.' },
+  v1: { name: '«Вояджер-1»', kind: 'Межпланетный зонд', rows: [['Запуск', '5 сентября 1977'], ['Пролёты', 'Юпитер 1979, Сатурн 1980'], ['Межзвёздное пространство', 'с 25 августа 2012'], ['Скорость', '16,9 км/с от Солнца']], fact: 'Самый далёкий рукотворный объект. В 1990 году сделал снимок «Бледно-голубая точка» — Земля с 6 млрд км.' },
+};
+for (const p of PLANETS) if (INFO[p.key]) INFO[p.key].color = p.color;
+INFO.earth.color = '#6fb7ff'; INFO.moon.color = '#c9d2e0';
+for (const m of GIANT_MOONS) INFO[m.key].color = m.color;
+for (const c of CRAFT) INFO[c.key].color = c.color;
+for (const [k, b] of Object.entries(AC_BODIES)) INFO[k].color = b.color;
+let infoKey = null, moonKmNow = 384400, infoTick = 0;
+function updateInfoLive() {
+  const el = $('infoLive'); if (!el || !infoKey) return;
+  let km = null, extra = '';
+  if (infoKey === 'sun') km = P.emb.au.length() * AU_KM;
+  else if (infoKey === 'moon') km = moonKmNow;
+  else if (P[infoKey]) km = P[infoKey].au.distanceTo(P.emb.au) * AU_KM;
+  else if (GM[infoKey]) km = P[GM[infoKey].planet].au.distanceTo(P.emb.au) * AU_KM;
+  else if (CR[infoKey]) {
+    const c = CR[infoKey];
+    if (!c.active) { el.innerHTML = '<dt>Положение</dt><dd>в эту дату не показано</dd>'; return; }
+    km = c.key === 'iss' ? 420 : c.au.distanceTo(P.emb.au) * AU_KM;
+    if (c.kind === 'escape') extra = '<dt>От Солнца</dt><dd>' + fmt(c.au.length(), 1) + ' а.е.</dd>';
+  } else if (AC_BODIES[infoKey]) { el.innerHTML = '<dt>Свет идёт до Земли</dt><dd>' + fmt(AC_BODIES[infoKey].distLy, 2) + ' года</dd>'; return; }
+  if (km === null) { el.innerHTML = ''; return; }
+  const sec = km / C_KMS;
+  const lt = sec < 60 ? fmt(sec, sec < 10 ? 2 : 0) + ' с' : sec < 3600 ? fmt(sec / 60, 1) + ' мин' : fmt(sec / 3600, 1) + ' ч';
+  el.innerHTML = (infoKey === 'iss' ? '<dt>Над Землёй</dt><dd>≈ 420 км</dd>' : '<dt>До Земли сейчас</dt><dd>' + kmText(km) + '</dd><dt>Свет идёт</dt><dd>' + lt + '</dd>') + extra;
+}
+
 const BUILD = [
   ['Солнце', () => { sun = new THREE.Mesh(new THREE.SphereGeometry(PHYS.sunRadius, 64, 48), new THREE.MeshBasicMaterial({ map: srgb(makeSunMap()) })); sunGroup.add(sun); }],
   ['Земля', () => {
-    const em = makeEarthMaps();
-    earth = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), new THREE.MeshPhongMaterial({ map: srgb(em.color), specularMap: tex(em.spec), specular: new THREE.Color(0x3a4a60), shininess: 22 }));
+    if (REAL.earth) {
+      earth = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), new THREE.MeshPhongMaterial({ map: REAL.earth, specularMap: REAL.earthSpec || null, specular: new THREE.Color(0x3a4a60), shininess: 22 }));
+      clouds = new THREE.Mesh(new THREE.SphereGeometry(1.012, 96, 64), REAL.earthClouds
+        ? new THREE.MeshLambertMaterial({ color: 0xffffff, alphaMap: REAL.earthClouds, transparent: true, opacity: 0.9, depthWrite: false })
+        : new THREE.MeshLambertMaterial({ transparent: true, opacity: 0 }));
+    } else {
+      const em = makeEarthMaps();
+      earth = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 64), new THREE.MeshPhongMaterial({ map: srgb(em.color), specularMap: tex(em.spec), specular: new THREE.Color(0x3a4a60), shininess: 22 }));
+      clouds = new THREE.Mesh(new THREE.SphereGeometry(1.012, 96, 64), new THREE.MeshLambertMaterial({ map: tex(em.clouds), transparent: true, depthWrite: false }));
+    }
     earthTiltG.add(earth);
-    clouds = new THREE.Mesh(new THREE.SphereGeometry(1.012, 96, 64), new THREE.MeshLambertMaterial({ map: tex(em.clouds), transparent: true, depthWrite: false }));
     earthTiltG.add(clouds, atmosphere(1.07, '0.32,0.62,1.0', 3.2));
     earthTiltG.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -1.5, 0), new THREE.Vector3(0, 1.5, 0)]), new THREE.LineBasicMaterial({ color: 0x6fb7ff, transparent: true, opacity: 0.45 })));
   }],
-  ['Луна', () => { moon = new THREE.Mesh(new THREE.SphereGeometry(PHYS.moonRadius, 64, 48), new THREE.MeshPhongMaterial({ map: srgb(makeMoonMap()), shininess: 2, specular: 0x000000 })); moonPivot.add(moon); }],
+  ['Луна', () => { moon = new THREE.Mesh(new THREE.SphereGeometry(PHYS.moonRadius, 64, 48), new THREE.MeshPhongMaterial({ map: REAL.moon || srgb(makeMoonMap()), shininess: 2, specular: 0x000000 })); moonPivot.add(moon); }],
   ['Марс', () => {
     const R = PHYS.marsRadius;
-    mars = new THREE.Mesh(new THREE.SphereGeometry(R, 96, 64), new THREE.MeshPhongMaterial({ map: srgb(makeMarsMap()), shininess: 3, specular: 0x000000 }));
+    mars = new THREE.Mesh(new THREE.SphereGeometry(R, 96, 64), new THREE.MeshPhongMaterial({ map: REAL.mars || srgb(makeMarsMap()), shininess: 3, specular: 0x000000 }));
     marsTiltG.add(mars, atmosphere(R * 1.035, '1.0,0.55,0.35', 4.5));
     marsMoons = MARS_MOONS.map((m, k) => {
       const g = new THREE.SphereGeometry(m.r, 32, 24), p = g.attributes.position, v = new THREE.Vector3();
@@ -812,11 +989,13 @@ const BUILD = [
     });
   }],
   ...PLANETS.filter(p => p.map).map(p => [p.name, () => {
-    p.mesh = new THREE.Mesh(new THREE.SphereGeometry(p.R, 96, 64), new THREE.MeshPhongMaterial({ map: srgb(p.map()), shininess: 2, specular: 0x000000 }));
+    p.mesh = new THREE.Mesh(new THREE.SphereGeometry(p.R, 96, 64), new THREE.MeshPhongMaterial({ map: REAL[p.key] || srgb(p.map()), shininess: 2, specular: 0x000000 }));
     if (p.flat) p.mesh.scale.y = p.flat;     // сплюснутость газовых гигантов
     p.tiltG.add(p.mesh);
     if (p.atmo) p.tiltG.add(atmosphere(p.R * 1.05, p.atmo[0], p.atmo[1]));
-    if (p.ring) p.tiltG.add(ringMesh(p.R * p.ring.inner, p.R * p.ring.outer, ringStrip(p.ring.inner, p.ring.outer, p.ring.fn)));
+    if (p.ring) p.tiltG.add(p.key === 'saturn' && REAL.saturnRing
+      ? ringMesh(p.R * 1.11, p.R * 2.27, REAL.saturnRing)   // настоящая карта колец: от кольца D до края кольца A
+      : ringMesh(p.R * p.ring.inner, p.R * p.ring.outer, ringStrip(p.ring.inner, p.ring.outer, p.ring.fn)));
   }]),
   ...['jupiter', 'saturn'].map(key => ['спутники: ' + P[key].name, () => {
     for (const m of GIANT_MOONS.filter(m => m.planet === key)) {
@@ -830,7 +1009,7 @@ const BUILD = [
 
 /* ---------- Интерфейс ---------- */
 const $ = id => document.getElementById(id);
-const ui = { speed: $('speed'), speedVal: $('speedVal'), play: $('playBtn'), real: $('realScale'), linear: $('linearScale'), showOrbits: $('showOrbits'), exag: $('exaggerate'), focus: $('focus'), dist: $('showDist') };
+const ui = { trails: $('trails'), speed: $('speed'), speedVal: $('speedVal'), play: $('playBtn'), real: $('realScale'), linear: $('linearScale'), showOrbits: $('showOrbits'), exag: $('exaggerate'), focus: $('focus'), dist: $('showDist') };
 const fmt = (v, d) => v.toLocaleString('ru-RU', { minimumFractionDigits: d, maximumFractionDigits: d });
 
 const J2000 = Date.UTC(2000, 0, 1, 12);
@@ -863,8 +1042,8 @@ distLine.frustumCulled = false; scene.add(distLine);
 const pulse = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowSprite('rgba(255,255,255,1)', 'rgba(255,255,255,0.35)', 64), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
 scene.add(pulse);
 let pulseSec = 0;
-const lightText = m => m < 60 ? fmt(m, m < 10 ? 1 : 0) + ' св. мин' : fmt(m / 60, 1) + ' св. ч';
-const kmText = km => km > 1e12 ? fmt(km / 1e12, 1) + ' трлн км' : km > 1e9 ? fmt(km / 1e9, 2) + ' млрд км' : fmt(km / 1e6, km < 1e8 ? 1 : 0) + ' млн км';
+const lightText = m => m * 60 < 1 ? fmt(m * 60000, 1) + ' св. мс' : m < 1 ? fmt(m * 60, 1) + ' св. с' : m < 60 ? fmt(m, m < 10 ? 1 : 0) + ' св. мин' : fmt(m / 60, 1) + ' св. ч';
+const kmText = km => km < 1e4 ? fmt(Math.round(km / 10) * 10, 0) + ' км' : km < 1e6 ? fmt(Math.round(km / 100) * 100, 0) + ' км' : km > 1e12 ? fmt(km / 1e12, 1) + ' трлн км' : km > 1e9 ? fmt(km / 1e9, 2) + ' млрд км' : fmt(km / 1e6, km < 1e8 ? 1 : 0) + ' млн км';
 ui.dist.addEventListener('change', () => { $('stripBox').hidden = !ui.dist.checked; resize(); });
 
 const stripCv = $('strip'), stripCtx = stripCv.getContext('2d');
@@ -915,6 +1094,7 @@ const ZERO = new THREE.Vector3();
 function endpoint(key) {
   if (key === 'sun') return { key, name: 'Солнце', color: '#ffc56e', pos: sunW, R: PHYS.sunRadius * 1.05, au: ZERO };
   if (key === 'emb') return { key, name: 'Земля', color: '#6fb7ff', pos: earthW, R: 1.3, au: P.emb.au };
+  if (CR[key]) { const c = CR[key]; return { key, name: c.name, color: c.color, pos: c.world, R: key === 'iss' ? 0.02 : 0.5, au: c.au }; }
   const p = P[key];
   return { key, name: p.name, color: p.color, pos: p.world, R: p.R * (p.ring ? 1.3 : 1.1), au: p.au };
 }
@@ -936,12 +1116,13 @@ const TAGS = [
   { id: 'prox', label: 'Проксима Центавра', color: '#ff7a52', focus: 'prox', ac: true },
   { id: 'proxb', label: 'Проксима b', cls: 'minor', color: '#d9a58a', focus: 'proxb', ac: true },
   { id: 'sunsky', label: 'Солнце · 4,37 св. года', color: '#ffc56e', focus: 'sun', ac: true },
+  ...CRAFT.map(c => ({ id: c.key, label: '◆ ' + c.name, cls: 'craft', color: c.color, focus: c.key })),
 ];
 for (const t of TAGS) {
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'tag' + (t.cls ? ' ' + t.cls : ''); b.id = 'tag-' + t.id; b.textContent = t.label;
   if (t.color) b.style.color = t.color;
-  b.addEventListener('click', () => setFocus(t.focus));
+  b.addEventListener('click', () => { setFocus(t.focus); if (t.focus === 'sun' && !t.ac) showInfo('sun'); });
   $(t.ac ? 'tagsAC' : 'tags').appendChild(b);
 }
 
@@ -952,10 +1133,32 @@ GIANT_MOONS.forEach(m => { FOCUS_DIST[m.key] = Math.max(0.6, m.r * 9); });
 let focus = 'sun', flying = 1, prevFocusKey = null;
 const prevFocusPos = new THREE.Vector3();
 Object.entries(AC_BODIES).forEach(([k, b]) => { FOCUS_DIST[k] = b.focus; });
+CRAFT.forEach(c => { FOCUS_DIST[c.key] = c.focus; });
 function setFocus(name) {
+  if (INFO[name] && name !== 'sun') showInfo(name); else hideInfo();
   if (sceneOf(name) !== activeScene) return warpTo(name);
   focus = name; flying = 1; ui.focus.value = name;
 }
+// карточка справки
+function showInfo(key) {
+  const it = INFO[key]; if (!it) return hideInfo();
+  infoKey = key;
+  const card = $('info');
+  card.style.setProperty('--card-color', it.color || 'var(--ink)');
+  $('infoBody').innerHTML = '<h2>' + it.name + '</h2><div class="kind">' + it.kind + '</div><dl>' +
+    it.rows.map(r => '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>').join('') +
+    '</dl><dl class="live" id="infoLive"></dl><p>' + it.fact + '</p>';
+  card.hidden = false; placeInfo(); updateInfoLive();
+}
+function hideInfo() { infoKey = null; $('info').hidden = true; }
+function placeInfo() {
+  const card = $('info'); if (card.hidden) return;
+  const mobile = innerWidth <= 640;
+  const above = mobile ? $('rd' + 'Date').closest('.readout') : document.querySelector('.title');
+  card.style.top = (above.getBoundingClientRect().bottom + 10) + 'px';
+}
+$('infoClose').addEventListener('click', hideInfo);
+addEventListener('resize', placeInfo);
 // перелёт между Солнечной системой и Альфой Центавра: затемнение, смена сцены, проявление
 let warping = false;
 const SOL_TEXT = document.querySelector('.title p').textContent;
@@ -1080,7 +1283,8 @@ function frame() {
 
   // Земля и Луна вокруг барицентра
   const mFrac = 1 / (1 + PHYS.massRatio);
-  const scaleD = distNow * moonGeo(d, moonDir) / 384400;
+  moonKmNow = moonGeo(d, moonDir);
+  const scaleD = distNow * moonKmNow / 384400;
   moonPivot.position.copy(moonDir).multiplyScalar(scaleD * (1 - mFrac));
   earthPivot.position.copy(moonDir).multiplyScalar(-scaleD * mFrac * exagNow);
   {
@@ -1114,7 +1318,7 @@ function frame() {
   PLANETS.forEach(p => p.sys.getWorldPosition(p.world));
 
   if (earth) {
-    earth.rotation.y = d / PHYS.earthSiderealDay * Math.PI * 2;
+    earth.rotation.y = (280.46061837 + 360.98564736629 * d) * DEG;   // звёздное время: к Солнцу повёрнута та сторона, где сейчас день
     clouds.rotation.y = earth.rotation.y * 1.04;
     v3.copy(earthW).sub(moonW); moon.rotation.set(0, Math.atan2(-v3.z, v3.x), PHYS.moonTilt);
     mars.rotation.y = d / PHYS.marsSol * Math.PI * 2;
@@ -1172,8 +1376,30 @@ function frame() {
     document.documentElement.style.setProperty('--target', body.color);
   } else $('rdSunName').textContent = 'Земля — Солнце';
 
+  // космические аппараты
+  for (const c of CRAFT) {
+    c.active = d >= c.from;
+    if (c.kind === 'escape') {
+      c.au.copy(c.dir).multiplyScalar(Math.max(0.5, c.r0 + c.v * (d - CRAFT_EPOCH_D) / 365.25));
+      mapAU(c.au, c.obj.position);
+    } else if (c.kind === 'l2') {     // за Землёй на линии Солнце — Земля, 1,5 млн км (в масштабе расстояния до Луны)
+      v3.copy(P.emb.au).normalize();
+      c.au.copy(P.emb.au).addScaledVector(v3, 1.5e6 / AU_KM);
+      c.obj.position.copy(earthW).addScaledVector(v3, distNow * 1.5e6 / 384400);
+    } else {                          // МКС
+      const th = d / 0.06451 * Math.PI * 2;
+      issPivot.position.set(Math.cos(th) * 6791 / 6371, 0, -Math.sin(th) * 6791 / 6371);
+    }
+    c.obj.visible = c.active;
+  }
+  issOrbit.visible = CR.iss.active && ui.showOrbits.checked;
+  scene.updateMatrixWorld();
+  for (const c of CRAFT) c.obj.getWorldPosition(c.world);
+  { const r = v3.copy(CR.iss.world).sub(earthW); CR.iss.au.copy(P.emb.au).addScaledVector(r.normalize(), 420 / AU_KM); }   // расстояние от поверхности
+  updateTrails(d, activeScene === 'sol' ? ui.trails.value : 'off');
+
   // камера
-  const focusPos = AC_BODIES[focus] ? AC_BODIES[focus].world : ({ sun: sunW, earth: earthW, moon: moonW, bary: P.emb.world }[focus] || (P[focus] || GM[focus]).world);
+  const focusPos = CR[focus] ? CR[focus].world : AC_BODIES[focus] ? AC_BODIES[focus].world : ({ sun: sunW, earth: earthW, moon: moonW, bary: P.emb.world }[focus] || (P[focus] || GM[focus]).world);
   if (snapCamera) {   // сразу после перелёта ставим камеру рядом с целью
     const off = camera.position.clone().sub(controls.target);
     if (off.lengthSq() < 1e-6) off.set(0, 0.5, 1);
@@ -1208,7 +1434,7 @@ function frame() {
       // две точки: «от» и «до» (по умолчанию — от Земли до тела, выбранного в камере)
       const fromKey = $('distFrom').value;
       let toKey = $('distTo').value;
-      if (toKey === 'cam') toKey = focus === 'sun' ? 'sun' : (focus === 'earth' || focus === 'moon' || focus === 'bary') ? 'emb' : (P[tgtKey] ? tgtKey : 'sun');
+      if (toKey === 'cam') toKey = focus === 'sun' ? 'sun' : (focus === 'earth' || focus === 'moon' || focus === 'bary') ? 'emb' : CR[focus] ? focus : (P[tgtKey] ? tgtKey : 'sun');
       if (toKey === fromKey) toKey = fromKey === 'sun' ? 'emb' : 'sun';
       const O = endpoint(fromKey), T = endpoint(toKey);
       const km2 = O.au.distanceTo(T.au) * AU_KM, lightMin2 = km2 / C_KMS / 60;
@@ -1219,7 +1445,7 @@ function frame() {
       lt.text = kmText(km2) + ' · ' + lightText(lightMin2); lt.note = '';
       $('rdTgtName').textContent = O.name + ' — ' + T.name;
       $('rdTgtDist').textContent = kmText(km2);
-      $('rdTgtLight').textContent = lightMin2 >= 60 ? Math.floor(lightMin2 / 60) + ' ч ' + String(Math.round(lightMin2 % 60)).padStart(2, '0') + ' мин'
+      $('rdTgtLight').textContent = lightMin2 * 60 < 1 ? fmt(lightMin2 * 60000, 1) + ' мс' : lightMin2 >= 60 ? Math.floor(lightMin2 / 60) + ' ч ' + String(Math.round(lightMin2 % 60)).padStart(2, '0') + ' мин'
         : Math.floor(lightMin2) + ' мин ' + String(Math.round((lightMin2 % 1) * 60)).padStart(2, '0') + ' с';
       document.documentElement.style.setProperty('--target', lt.color);
     } else {   // у Альфы Центавра: линия от Солнца на здешнем небе, свет ускорен так, чтобы импульс летел 8 секунд
@@ -1250,7 +1476,8 @@ function frame() {
       // подпись ставится у той части линии, что в кадре: в обзоре — ближе к Земле, вблизи тела — рядом с ним
       const segL = a.distanceTo(b);
       const bottomY = Math.min(view.y + view.h * 0.85, ($('stripBox').offsetHeight ? $('stripBox') : $('controls')).getBoundingClientRect().top - 24);
-      const inFrame = q => q.ok && q.x > view.x + view.w * 0.12 && q.x < view.x + view.w * 0.88 && q.y > view.y + view.h * 0.25 && q.y < bottomY;
+      const leftX = $('info').hidden ? view.x + view.w * 0.12 : $('info').getBoundingClientRect().right + 12;
+      const inFrame = q => q.ok && q.x > leftX && q.x < view.x + view.w * 0.88 && q.y > view.y + view.h * 0.25 && q.y < bottomY;
       let ok = false, mid = new THREE.Vector3();
       if (camDist > segL * 1.2) {            // вся линия в кадре: подпись ближе к Земле, если линия не слишком короткая
         screenOf(a, sA); screenOf(b, sB);
@@ -1296,6 +1523,12 @@ function frame() {
     placeTag(m.key, m.world, pxRadius(m.world, m.r) + 4, host.world, near ? pxRadius(host.world, host.R) + 14 : 1e9);
   });
 
+  for (const c of CRAFT) {
+    const nearEarth = camera.position.distanceTo(earthW);
+    const minSep = c.kind === 'iss' ? (nearEarth < 12 ? 0 : 1e9) : c.kind === 'l2' ? (nearEarth < 300 ? 0 : 1e9) : 26;
+    if (c.active) placeTag(c.key, c.world, 10, c.kind === 'escape' ? sunW : earthW, minSep); else $('tag-' + c.key).style.display = 'none';
+  }
+  if (infoKey && (++infoTick % 12 === 0)) updateInfoLive();
   placeTag('acsky', acSky.position, 12);
   if (activeScene === 'ac') {
     for (const k of ['acA', 'acB', 'prox']) placeTag(k, AC_BODIES[k].world, pxRadius(AC_BODIES[k].world, AC_BODIES[k].R) + 4);
@@ -1311,7 +1544,9 @@ function frame() {
 
 resize();
 let step = 0;
-(function buildNext() {
+$('loading').textContent = 'Загружаю карты поверхностей…';
+loadRealTextures().then(() => buildNext());
+function buildNext() {
   if (step < BUILD.length) {
     $('loading').textContent = 'Генерирую поверхность: ' + BUILD[step][0] + '…';
     setTimeout(() => { BUILD[step][1](); step++; buildNext(); }, 16);
@@ -1320,7 +1555,7 @@ let step = 0;
   $('loading').remove();
   clock.getDelta();
   frame();
-})();
+}
 })();
 </script>
 
